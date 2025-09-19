@@ -5,6 +5,9 @@ process MASH_TAXA {
   container     'staphb/mash:2.3'
   time          '30m'
   
+  // Note: Memory requirements depend on RefSeq database size
+  // Typically requires 8-16 GB RAM for RefSeq database operations
+  
   input:
   tuple val(meta), file(fasta)
 
