@@ -77,7 +77,7 @@ process FINAL_SUMMARY {
                           if len(data_line) >= 6:
                               return data_line[5]  # genus_species column
               except Exception as e:
-                  print(f"Error reading {mash_file}: {e}")
+                  print("Error reading {}: {}".format(mash_file, e))
                   continue
       return 'unknown'
 
@@ -130,9 +130,9 @@ process FINAL_SUMMARY {
       # Save the enhanced summary
       summary_df.to_csv('waphl_final_summary.tsv', sep='\\t', index=False)
       
-      print(f"Enhanced summary created with {len(summary_df)} samples")
-      print(f"Found {len(mash_files)} mash taxa files")
-      print(f"Found {len(consensus_files)} consensus files")
+      print("Enhanced summary created with {} samples".format(len(summary_df)))
+      print("Found {} mash taxa files".format(len(mash_files)))
+      print("Found {} consensus files".format(len(consensus_files)))
 
   if __name__ == '__main__':
       main()
