@@ -22,7 +22,7 @@ process MASH_TAXA {
   script:
   def args   = task.ext.args   ?: ''
   def prefix = task.ext.prefix ?: "${meta.id}"
-  def db     = task.ext.db     ?: '/mash_db/RefSeqSketchesDefaults.msh'
+  def db     = task.ext.db     ?: '/db/RefSeqSketchesDefaults.msh'
   """
   mkdir -p mash_taxa
 
