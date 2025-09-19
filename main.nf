@@ -60,7 +60,11 @@ def paramCheck(keys) {
     "config_profile_name",
     "config_profile_description",
     "config_profile_contact",
-    "config_profile_url"]
+    "config_profile_url",
+    "max_memory",
+    "max_cpus",
+    "max_time",
+    "help"]
 
   for(key in keys){
     if (key !in set_keys){
@@ -1863,6 +1867,7 @@ workflow DONUT_FALLS {
     pypolca_polished = ch_pypolca_fa
     unicycler        = ch_unicycler_fa
     versions         = ch_versions
+    summary_tsv      = summary.out.csv
 }
 
 // ##### ##### ##### ##### ##### ##### ##### ##### ##### #####
