@@ -1,4 +1,4 @@
-process mash_taxa {
+process MASH_TAXA_taxa {
   tag           "${meta.id}"
   label         "process_medium"
   publishDir    "${params.outdir}/${meta.id}", mode: 'copy', pattern: "mash_taxa/*"
