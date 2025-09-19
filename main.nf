@@ -1,7 +1,8 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl = 2
 
-include { MASH_TAXA } from './modules/local/mash'
+//include { MASH_TAXA } from './modules/local/mash'
+include { WAPHL_ANALYSIS } from './subworkflows/local/waphl_analysis'
 
 // read but ignored most things from
 // https://carpentries-incubator.github.io/Pipeline_Training_with_Nextflow/07-Nextflow_Best_Practice/index.html
@@ -1899,6 +1900,12 @@ workflow {
   }
 
   DONUT_FALLS(ch_nanopore_input, ch_illumina_input.ifEmpty([]))
+
+  // Run WAPHL_ANALYSIS after DONUT_FALLS
+  WAPHL_ANALYSIS(
+    DONUT_FALLS.out.consensus,
+    DONUT_FALLS.out.summary_tsv
+  )
 }
 
 workflow.onComplete {
@@ -1906,5 +1913,6 @@ workflow.onComplete {
   println("The multiqc report can be found at ${params.outdir}/multiqc/multiqc_report.html")
   println("The consensus fasta files can be found in ${params.outdir}/sample/consensus")
   println("The fasta files are from each phase of assembly: unpolished/reoriented -> clair3 -> polypolish (if illumina reads are supplied) -> pypolca")
+  println("The WAPHL analysis results including taxonomic identification can be found at ${params.outdir}/summary/waphl_final_summary.tsv")
   println("Execution status: ${ workflow.success ? 'OK' : 'failed' }")
 }
