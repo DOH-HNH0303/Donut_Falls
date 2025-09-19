@@ -1,6 +1,7 @@
 process FINAL_SUMMARY {
   tag           "Creating final summary with WAPHL analysis"
   label         "process_low"
+  publishDir    "${params.outdir}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
   publishDir    "${params.outdir}/summary", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
   container     'staphb/multiqc:1.30'
   time          '30m'

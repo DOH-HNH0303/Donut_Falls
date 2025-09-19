@@ -3,4 +3,6 @@ reports:
     display: "MultiQC report"
   NanoStats.csv:
     display: "NanoStats results"
+  waphl_final_summary.tsv:
+    display: "WAPHL Final Summary"
     
