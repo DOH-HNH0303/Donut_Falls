@@ -23,6 +23,7 @@ process FINAL_SUMMARY {
   import pandas as pd
   import glob
   import os
+  import sys
   from pathlib import Path
 
   def determine_assembly_type(sample, summary_df):
@@ -98,53 +99,65 @@ process FINAL_SUMMARY {
       return ''
 
   def main():
-      # Read the original donut falls summary
-      summary_df = pd.read_csv('${donut_falls_summary}', sep='\\t')
-      
-      # Get all mash taxa files
-      mash_files = glob.glob('*_taxa.txt')
-      
-      # Get all consensus files
-      consensus_files = glob.glob('*.fasta')
-      
-      # Create new columns
-      summary_df['mash_taxa'] = ''
-      summary_df['mash_distance'] = ''
-      summary_df['assembly_type'] = ''
-      summary_df['consensus_filepath'] = ''
-      summary_df['sub_fasta_filepath'] = ''
-      
-      # Fill in the new columns for each sample
-      for idx, row in summary_df.iterrows():
-          sample = row['sample']
+      try:
+          # Read the original donut falls summary
+          summary_df = pd.read_csv('${donut_falls_summary}', sep='\\t')
           
-          # Get mash taxa and distance
-          mash_taxa, mash_distance = get_mash_taxa_and_distance(sample, mash_files)
-          summary_df.at[idx, 'mash_taxa'] = mash_taxa
-          summary_df.at[idx, 'mash_distance'] = mash_distance
+          # Get all mash taxa files
+          mash_files = glob.glob('*_taxa.txt')
           
-          # Determine assembly type
-          summary_df.at[idx, 'assembly_type'] = determine_assembly_type(sample, summary_df)
+          # Get all consensus files
+          consensus_files = glob.glob('*.fasta')
           
-          # Get consensus filepath
-          summary_df.at[idx, 'consensus_filepath'] = get_consensus_filepath(sample, consensus_files)
+          print("Found {} samples in summary".format(len(summary_df)))
+          print("Found {} mash taxa files: {}".format(len(mash_files), mash_files))
+          print("Found {} consensus files: {}".format(len(consensus_files), consensus_files))
           
-          # Get sub_fasta filepath
-          summary_df.at[idx, 'sub_fasta_filepath'] = get_sub_fasta_filepath(sample, consensus_files)
-      
-      # Save the enhanced summary
-      summary_df.to_csv('waphl_final_summary.tsv', sep='\\t', index=False)
-      
-      print("Enhanced summary created with {} samples".format(len(summary_df)))
-      print("Found {} mash taxa files".format(len(mash_files)))
-      print("Found {} consensus files".format(len(consensus_files)))
+          # Create new columns
+          summary_df['mash_taxa'] = ''
+          summary_df['mash_distance'] = ''
+          summary_df['assembly_type'] = ''
+          summary_df['consensus_filepath'] = ''
+          summary_df['sub_fasta_filepath'] = ''
+          
+          # Fill in the new columns for each sample
+          for idx, row in summary_df.iterrows():
+              sample = row['sample']
+              print("Processing sample: {}".format(sample))
+              
+              # Get mash taxa and distance
+              mash_taxa, mash_distance = get_mash_taxa_and_distance(sample, mash_files)
+              summary_df.at[idx, 'mash_taxa'] = mash_taxa
+              summary_df.at[idx, 'mash_distance'] = mash_distance
+              
+              # Determine assembly type
+              summary_df.at[idx, 'assembly_type'] = determine_assembly_type(sample, summary_df)
+              
+              # Get consensus filepath
+              summary_df.at[idx, 'consensus_filepath'] = get_consensus_filepath(sample, consensus_files)
+              
+              # Get sub_fasta filepath
+              summary_df.at[idx, 'sub_fasta_filepath'] = get_sub_fasta_filepath(sample, consensus_files)
+          
+          # Save the enhanced summary
+          summary_df.to_csv('waphl_final_summary.tsv', sep='\\t', index=False)
+          
+          print("Enhanced summary created with {} samples".format(len(summary_df)))
+          print("Found {} mash taxa files".format(len(mash_files)))
+          print("Found {} consensus files".format(len(consensus_files)))
+          
+          # Write versions file
+          with open('versions.yml', 'w') as f:
+              f.write('"${task.process}":\\n')
+              f.write('  python: {}\\n'.format(sys.version.split()[0]))
+          
+      except Exception as e:
+          print("Error in main: {}".format(e))
+          import traceback
+          traceback.print_exc()
+          sys.exit(1)
 
   if __name__ == '__main__':
       main()
-
-  cat <<-END_VERSIONS > versions.yml
-  "${task.process}":
-    python: \$(python --version | awk '{print \$2}')
-  END_VERSIONS
   """
 }
