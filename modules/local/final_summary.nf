@@ -20,37 +20,49 @@ process FINAL_SUMMARY {
   script:
   """
   #!/usr/bin/env python3
-  import pandas as pd
+  import csv
   import glob
   import os
   import sys
   from pathlib import Path
 
-  def determine_assembly_type(sample, summary_df):
+  def read_tsv_file(filename):
+      """Read TSV file and return list of dictionaries"""
+      data = []
+      with open(filename, 'r', newline='') as f:
+          reader = csv.DictReader(f, delimiter='\\t')
+          for row in reader:
+              data.append(row)
+      return data
+
+  def write_tsv_file(filename, data, fieldnames):
+      """Write data to TSV file"""
+      with open(filename, 'w', newline='') as f:
+          writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\\t')
+          writer.writeheader()
+          writer.writerows(data)
+
+  def determine_assembly_type(sample_row):
       # Determine if assembly is illumina/ont/hybrid based on available data
-      if sample not in summary_df['sample'].values:
-          return 'unknown'
-      
-      sample_row = summary_df[summary_df['sample'] == sample].iloc[0]
       
       # Check for illumina data
       has_illumina = False
-      for col in sample_row.index:
-          if 'illumina' in col.lower() and pd.notna(sample_row[col]) and str(sample_row[col]).strip() != '':
+      for col, value in sample_row.items():
+          if 'illumina' in col.lower() and value and str(value).strip() != '':
               has_illumina = True
               break
       
       # Check for nanopore data
       has_nanopore = False
-      for col in sample_row.index:
-          if 'nanopore' in col.lower() and pd.notna(sample_row[col]) and str(sample_row[col]).strip() != '':
+      for col, value in sample_row.items():
+          if 'nanopore' in col.lower() and value and str(value).strip() != '':
               has_nanopore = True
               break
       
       # Check for unicycler (hybrid assembly)
       has_unicycler = False
-      for col in sample_row.index:
-          if 'unicycler' in col.lower() and pd.notna(sample_row[col]) and str(sample_row[col]).strip() != '':
+      for col, value in sample_row.items():
+          if 'unicycler' in col.lower() and value and str(value).strip() != '':
               has_unicycler = True
               break
       
@@ -101,7 +113,7 @@ process FINAL_SUMMARY {
   def main():
       try:
           # Read the original donut falls summary
-          summary_df = pd.read_csv('${donut_falls_summary}', sep='\\t')
+          summary_data = read_tsv_file('${donut_falls_summary}')
           
           # Get all mash taxa files
           mash_files = glob.glob('*_taxa.txt')
@@ -109,40 +121,39 @@ process FINAL_SUMMARY {
           # Get all consensus files
           consensus_files = glob.glob('*.fasta')
           
-          print("Found {} samples in summary".format(len(summary_df)))
+          print("Found {} samples in summary".format(len(summary_data)))
           print("Found {} mash taxa files: {}".format(len(mash_files), mash_files))
           print("Found {} consensus files: {}".format(len(consensus_files), consensus_files))
           
-          # Create new columns
-          summary_df['mash_taxa'] = ''
-          summary_df['mash_distance'] = ''
-          summary_df['assembly_type'] = ''
-          summary_df['consensus_filepath'] = ''
-          summary_df['sub_fasta_filepath'] = ''
-          
-          # Fill in the new columns for each sample
-          for idx, row in summary_df.iterrows():
+          # Process each sample
+          for row in summary_data:
               sample = row['sample']
               print("Processing sample: {}".format(sample))
               
               # Get mash taxa and distance
               mash_taxa, mash_distance = get_mash_taxa_and_distance(sample, mash_files)
-              summary_df.at[idx, 'mash_taxa'] = mash_taxa
-              summary_df.at[idx, 'mash_distance'] = mash_distance
+              row['mash_taxa'] = mash_taxa
+              row['mash_distance'] = mash_distance
               
               # Determine assembly type
-              summary_df.at[idx, 'assembly_type'] = determine_assembly_type(sample, summary_df)
+              row['assembly_type'] = determine_assembly_type(row)
               
               # Get consensus filepath
-              summary_df.at[idx, 'consensus_filepath'] = get_consensus_filepath(sample, consensus_files)
+              row['consensus_filepath'] = get_consensus_filepath(sample, consensus_files)
               
               # Get sub_fasta filepath
-              summary_df.at[idx, 'sub_fasta_filepath'] = get_sub_fasta_filepath(sample, consensus_files)
+              row['sub_fasta_filepath'] = get_sub_fasta_filepath(sample, consensus_files)
           
-          # Save the enhanced summary
-          summary_df.to_csv('waphl_final_summary.tsv', sep='\\t', index=False)
+          # Get all fieldnames (original + new columns)
+          if summary_data:
+              fieldnames = list(summary_data[0].keys())
+          else:
+              fieldnames = ['sample']
           
-          print("Enhanced summary created with {} samples".format(len(summary_df)))
+          # Write the enhanced summary
+          write_tsv_file('waphl_final_summary.tsv', summary_data, fieldnames)
+          
+          print("Enhanced summary created with {} samples".format(len(summary_data)))
           print("Found {} mash taxa files".format(len(mash_files)))
           print("Found {} consensus files".format(len(consensus_files)))
           
