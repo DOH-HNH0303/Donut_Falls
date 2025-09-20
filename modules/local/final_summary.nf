@@ -1,7 +1,6 @@
 process FINAL_SUMMARY {
   tag           "Creating final summary with WAPHL analysis"
   label         "process_low"
-  publishDir    "${params.outdir}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
   publishDir    "${params.outdir}/summary", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
   container     'staphb/multiqc:1.30'
   time          '30m'
@@ -27,7 +26,7 @@ process FINAL_SUMMARY {
   from pathlib import Path
 
   def determine_assembly_type(sample, summary_df):
-      '''Determine if assembly is illumina/ont/hybrid based on available data'''
+      # Determine if assembly is illumina/ont/hybrid based on available data
       if sample not in summary_df['sample'].values:
           return 'unknown'
       
@@ -65,8 +64,8 @@ process FINAL_SUMMARY {
       else:
           return 'unknown'
 
-  def get_mash_taxa(sample, mash_files):
-      '''Extract the top mash taxa hit for a sample'''
+  def get_mash_taxa_and_distance(sample, mash_files):
+      # Extract the top mash taxa hit and distance for a sample
       for mash_file in mash_files:
           if sample in mash_file:
               try:
@@ -76,21 +75,23 @@ process FINAL_SUMMARY {
                           # Get the first data line (best match)
                           data_line = lines[1].strip().split('\\t')
                           if len(data_line) >= 6:
-                              return data_line[5]  # genus_species column
+                              genus_species = data_line[5]  # genus_species column
+                              distance = data_line[2]       # distance column
+                              return genus_species, distance
               except Exception as e:
                   print("Error reading {}: {}".format(mash_file, e))
                   continue
-      return 'unknown'
+      return 'unknown', 'unknown'
 
   def get_consensus_filepath(sample, consensus_files):
-      '''Get the consensus genome filepath for a sample'''
+      # Get the consensus genome filepath for a sample
       for consensus_file in consensus_files:
           if sample in consensus_file and consensus_file.endswith('.fasta'):
               return consensus_file
       return ''
 
   def get_sub_fasta_filepath(sample, consensus_files):
-      '''Get the sub_fasta filepath if it exists'''
+      # Get the sub_fasta filepath if it exists
       for consensus_file in consensus_files:
           if sample in consensus_file and 'sub_' in consensus_file and consensus_file.endswith('.fasta'):
               return consensus_file
@@ -108,6 +109,7 @@ process FINAL_SUMMARY {
       
       # Create new columns
       summary_df['mash_taxa'] = ''
+      summary_df['mash_distance'] = ''
       summary_df['assembly_type'] = ''
       summary_df['consensus_filepath'] = ''
       summary_df['sub_fasta_filepath'] = ''
@@ -116,8 +118,10 @@ process FINAL_SUMMARY {
       for idx, row in summary_df.iterrows():
           sample = row['sample']
           
-          # Get mash taxa
-          summary_df.at[idx, 'mash_taxa'] = get_mash_taxa(sample, mash_files)
+          # Get mash taxa and distance
+          mash_taxa, mash_distance = get_mash_taxa_and_distance(sample, mash_files)
+          summary_df.at[idx, 'mash_taxa'] = mash_taxa
+          summary_df.at[idx, 'mash_distance'] = mash_distance
           
           # Determine assembly type
           summary_df.at[idx, 'assembly_type'] = determine_assembly_type(sample, summary_df)
