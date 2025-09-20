@@ -27,7 +27,7 @@ process FINAL_SUMMARY {
   from pathlib import Path
 
   def read_tsv_file(filename):
-      """Read TSV file and return list of dictionaries"""
+      \"\"\"Read TSV file and return list of dictionaries\"\"\"
       data = []
       with open(filename, 'r', newline='') as f:
           reader = csv.DictReader(f, delimiter='\\t')
@@ -36,7 +36,7 @@ process FINAL_SUMMARY {
       return data
 
   def write_tsv_file(filename, data, fieldnames):
-      """Write data to TSV file"""
+      \"\"\"Write data to TSV file\"\"\"
       with open(filename, 'w', newline='') as f:
           writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\\t')
           writer.writeheader()
