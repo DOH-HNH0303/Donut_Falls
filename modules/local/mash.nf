@@ -46,13 +46,26 @@ process MASH_TAXA {
       gsub(/\\.(fna|fasta|fa).*\$/, "", ref_name)
       gsub(/_genomic\$/, "", ref_name)
       
-      # Try to extract genus species from different RefSeq formats
-      # Format 1: GCF_000005825.2_ASM582v2 -> look for genus_species pattern after GCF_
-      if (match(ref_name, /^GCF_[0-9]+\\.[0-9]+_/)) {
-        # Remove the GCF prefix
-        gsub(/^GCF_[0-9]+\\.[0-9]+_/, "", ref_name)
+      # IMPROVED: Handle complex RefSeq formats with embedded genus_species
+      # Look for genus_species pattern anywhere in the name (not just at start)
+      # Pattern: [A-Z][a-z]+_[a-z]+ (genus_species with underscore)
+      if (match(ref_name, /[A-Z][a-z]+_[a-z][a-z]+/)) {
+        # Extract the matched portion
+        matched_part = substr(ref_name, RSTART, RLENGTH)
         
-        # Look for genus_species pattern at start
+        # Split the matched part and validate
+        split(matched_part, genus_parts, "_")
+        if (length(genus_parts) >= 2 && match(genus_parts[1], /^[A-Z][a-z]+\$/) && match(genus_parts[2], /^[a-z]+\$/) && length(genus_parts[2]) > 2) {
+          genus_species = genus_parts[1] " " genus_parts[2]
+        }
+      }
+      
+      # If still unknown, try standard GCF format
+      if (genus_species == "Unknown" && match(ref_name, /GCF_[0-9]+\\.[0-9]+/)) {
+        # Remove everything up to and including GCF_XXXXXX.X
+        gsub(/.*GCF_[0-9]+\\.[0-9]+[^A-Za-z]*/, "", ref_name)
+        
+        # Look for genus_species pattern at start of remaining string
         if (match(ref_name, /^[A-Z][a-z]+_[a-z]+/)) {
           split(ref_name, parts, "_")
           if (length(parts) >= 2 && match(parts[1], /^[A-Z][a-z]+\$/) && match(parts[2], /^[a-z]+\$/) && length(parts[2]) > 2) {
@@ -61,22 +74,11 @@ process MASH_TAXA {
         }
       }
       
-      # Format 2: Direct genus_species format
+      # If still unknown, try direct genus_species format
       if (genus_species == "Unknown" && match(ref_name, /^[A-Z][a-z]+_[a-z]+/)) {
         split(ref_name, parts, "_")
         if (length(parts) >= 2 && match(parts[1], /^[A-Z][a-z]+\$/) && match(parts[2], /^[a-z]+\$/) && length(parts[2]) > 2) {
           genus_species = parts[1] " " parts[2]
-        }
-      }
-      
-      # Format 3: Look for any genus species pattern in the name
-      if (genus_species == "Unknown") {
-        split(ref_name, parts, "_")
-        for (i = 1; i <= length(parts)-1; i++) {
-          if (match(parts[i], /^[A-Z][a-z]+\$/) && match(parts[i+1], /^[a-z]+\$/) && length(parts[i+1]) > 2) {
-            genus_species = parts[i] " " parts[i+1]
-            break
-          }
         }
       }
       
