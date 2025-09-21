@@ -1861,6 +1861,7 @@ workflow DONUT_FALLS {
   emit:
     gfa              = ch_gfa
     consensus        = ch_consensus
+    consensus_files  = copy.out.fastas
     reoriented       = ch_reoriented
     clair3_polished  = ch_clair3_fa
     polypolished     = ch_polypolish_fa
@@ -1908,7 +1909,7 @@ workflow {
 
   // Run WAPHL_ANALYSIS after DONUT_FALLS
   WAPHL_ANALYSIS(
-    DONUT_FALLS.out.consensus,
+    DONUT_FALLS.out.consensus_files,
     DONUT_FALLS.out.summary_tsv
   )
 }
