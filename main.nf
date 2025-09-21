@@ -1909,6 +1909,7 @@ workflow {
 
   // Run WAPHL_ANALYSIS after DONUT_FALLS
   WAPHL_ANALYSIS(
+    DONUT_FALLS.out.consensus,
     DONUT_FALLS.out.consensus_files,
     DONUT_FALLS.out.summary_tsv
   )
