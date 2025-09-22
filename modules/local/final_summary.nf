@@ -98,9 +98,38 @@ process FINAL_SUMMARY {
 
   def get_consensus_filepath(sample, consensus_files):
       # Get the consensus genome filepath for a sample
+      # Prioritize the most processed version available
+      
+      # First priority: pypolca (final polishing step)
+      for consensus_file in consensus_files:
+          if sample in consensus_file and '_pypolca.fasta' in consensus_file:
+              return consensus_file
+      
+      # Second priority: polypolish
+      for consensus_file in consensus_files:
+          if sample in consensus_file and '_polypolish.fasta' in consensus_file:
+              return consensus_file
+      
+      # Third priority: clair3
+      for consensus_file in consensus_files:
+          if sample in consensus_file and '_clair3.fasta' in consensus_file:
+              return consensus_file
+      
+      # Fourth priority: reoriented
+      for consensus_file in consensus_files:
+          if sample in consensus_file and '_reoriented.fasta' in consensus_file:
+              return consensus_file
+      
+      # Fifth priority: unicycler (hybrid assembly)
+      for consensus_file in consensus_files:
+          if sample in consensus_file and '_unicycler.fasta' in consensus_file:
+              return consensus_file
+      
+      # Fallback: any fasta file for the sample
       for consensus_file in consensus_files:
           if sample in consensus_file and consensus_file.endswith('.fasta'):
               return consensus_file
+      
       return ''
 
   def get_sub_fasta_filepath(sample, consensus_files):
@@ -150,7 +179,7 @@ process FINAL_SUMMARY {
               row['consensus_filepath'] = get_consensus_filepath(sample, consensus_files)
               
               # Get sub_fasta filepath
-              row['sub_fasta_filepath'] = get_sub_fasta_filepath(sample, consensus_files)
+              row['reoriented_assembly_filepath'] = get_sub_fasta_filepath(sample, consensus_files)
           
           # Get all fieldnames (original + new columns)
           if summary_data:
