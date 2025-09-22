@@ -8,7 +8,7 @@ process MASH_TAXA {
     tuple val(meta), path(fasta)
     
     when:
-    !assembly.name.contains('reoriented')
+    !fasta_file.name.contains('reoriented')
 
     output:
     tuple val(meta), path("mash_taxa/*.txt"), emit: taxa
