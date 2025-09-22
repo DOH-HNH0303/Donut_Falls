@@ -7,6 +7,9 @@ process MASH_TAXA {
     input:
     tuple val(meta), path(fasta)
     
+    when:
+    !assembly.name.contains('reoriented')
+
     output:
     tuple val(meta), path("mash_taxa/*.txt"), emit: taxa
     path "versions.yml", emit: versions
