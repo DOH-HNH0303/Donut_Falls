@@ -105,9 +105,17 @@ process FINAL_SUMMARY {
 
   def get_sub_fasta_filepath(sample, consensus_files):
       # Get the sub_fasta filepath if it exists
+      # First priority: Look for files with 'sub_' prefix (circular assemblies with special headers)
       for consensus_file in consensus_files:
           if sample in consensus_file and 'sub_' in consensus_file and consensus_file.endswith('.fasta'):
               return consensus_file
+      
+      # Second priority: Look for reoriented files as they are submission-ready
+      for consensus_file in consensus_files:
+          if sample in consensus_file and '_reoriented' in consensus_file and consensus_file.endswith('.fasta'):
+              return consensus_file
+      
+      # If neither sub_ files nor reoriented files are found, return empty string
       return ''
 
   def main():
