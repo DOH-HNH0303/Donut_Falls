@@ -20,6 +20,7 @@ workflow WAPHL_ANALYSIS {
     MASH_TAXA.out.taxa
         .map { meta, taxa_file -> taxa_file }
         .collect()
+        .ifEmpty([])
         .set { ch_mash_taxa_files }
 
     // Collect all consensus files (including sub_fasta files) for final summary

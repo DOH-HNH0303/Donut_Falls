@@ -8,7 +8,7 @@ process MASH_TAXA {
     tuple val(meta), path(fasta)
     
     when:
-    fasta_file != null && !fasta_file.name.contains('reoriented')
+    fasta != null && !fasta.name.contains('reoriented')
 
     output:
     tuple val(meta), path("mash_taxa/*.txt"), emit: taxa
