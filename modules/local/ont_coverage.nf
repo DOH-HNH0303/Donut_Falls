@@ -2,7 +2,7 @@ process ONT_COVERAGE {
   tag           "${meta.id}"
   label         "process_medium"
   publishDir    "${params.outdir}/${meta.id}", mode: 'copy', pattern: "ont_coverage/*"
-  container     'staphb/circulocov:0.1.20240104'
+  container     'quay.io/biocontainers/mulled-v2-66534bcbb7031a148b13e2ad42583020b9cd25c4:1679e915ddb9d6b4abda91880c4b48857d471bd8-0'
   time          '30m'
 
   input:

@@ -1930,6 +1930,7 @@ workflow.onComplete {
   println("The multiqc report can be found at ${params.outdir}/multiqc/multiqc_report.html")
   println("The consensus fasta files can be found in ${params.outdir}/sample/consensus")
   println("The fasta files are from each phase of assembly: unpolished/reoriented -> clair3 -> polypolish (if illumina reads are supplied) -> pypolca")
+  println("The ONT coverage analysis results can be found at ${params.outdir}/summary/ont_coverage_summary.tsv")
   println("The WAPHL analysis results including taxonomic identification can be found at ${params.outdir}/summary/waphl_final_summary.tsv")
   println("Execution status: ${ workflow.success ? 'OK' : 'failed' }")
 }
