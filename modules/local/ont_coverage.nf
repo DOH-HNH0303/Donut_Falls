@@ -66,7 +66,7 @@ process ONT_COVERAGE {
 
   # Calculate theoretical coverage from read data
   total_bases_reads=\$(zcat ${nanopore} | awk 'NR%4==2 {sum+=length(\$0)} END {print sum}')
-  theoretical_coverage=$(awk -v reads=$total_bases_reads -v genome=$genome_size 'BEGIN {printf "%.2f", reads/genome}')
+  theoretical_coverage=\$(awk -v reads=\$total_bases_reads -v genome=\$genome_size 'BEGIN {printf "%.2f", reads/genome}')
 
   # Add theoretical coverage to summary
   echo -e "\\n# Theoretical coverage based on read data" >> ont_coverage/${prefix}_ont_coverage_summary.tsv
