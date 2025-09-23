@@ -100,42 +100,54 @@ process FINAL_SUMMARY {
 
   def get_coverage_data(sample, coverage_files):
       # Extract coverage data for a sample (ONT or Illumina)
+      coverage_data = {}
+      
       for coverage_file in coverage_files:
           if sample in coverage_file and '_coverage_summary.tsv' in coverage_file:
               try:
                   with open(coverage_file, 'r') as f:
                       lines = f.readlines()
+                      read_platform = None
+                      
+                      # Parse the main coverage statistics
                       if len(lines) > 1:  # Skip header
                           # Get the first data line
                           data_line = lines[1].strip().split('\\t')
                           if len(data_line) >= 7:
                               read_platform = data_line[1]
-                              return {
+                              coverage_data.update({
                                   f'{read_platform.lower()}_total_bases': data_line[2],
                                   f'{read_platform.lower()}_covered_bases': data_line[3], 
                                   f'{read_platform.lower()}_coverage_breadth_percent': data_line[4],
                                   f'{read_platform.lower()}_mean_depth': data_line[5],
                                   f'{read_platform.lower()}_max_depth': data_line[6],
                                   'read_platform': read_platform
-                              }
-                      # Check for theoretical coverage data
+                              })
+                      
+                      # Parse theoretical coverage data
                       for line in lines:
                           if line.startswith('genome_size'):
                               continue
-                          elif '\\t' in line and not line.startswith('#'):
+                          elif '\\t' in line and not line.startswith('#') and 'genome_size' in line:
+                              # This is the theoretical coverage line
                               parts = line.strip().split('\\t')
                               if len(parts) >= 4:
-                                  read_platform = parts[3].lower()
-                                  return {
-                                      f'{read_platform}_genome_size': parts[0],
-                                      f'{read_platform}_total_read_bases': parts[1],
-                                      f'{read_platform}_theoretical_coverage': parts[2],
-                                      'read_platform': parts[3]
-                                  }
+                                  platform = parts[3].strip()
+                                  coverage_data.update({
+                                      f'{platform.lower()}_genome_size': parts[0],
+                                      f'{platform.lower()}_total_read_bases': parts[1],
+                                      f'{platform.lower()}_theoretical_coverage': parts[2]
+                                  })
+                                  break
+                      
+                      # If we found data, return it
+                      if coverage_data:
+                          return coverage_data
+                          
               except Exception as e:
                   print("Error reading {}: {}".format(coverage_file, e))
                   continue
-      return {}
+      return coverage_data
 
 
   def get_consensus_filepath(sample, consensus_files):
