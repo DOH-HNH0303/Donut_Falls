@@ -1912,17 +1912,18 @@ workflow {
     DONUT_FALLS.out.consensus,
     DONUT_FALLS.out.consensus_files,
     DONUT_FALLS.out.summary_tsv,
-    ch_nanopore_input
+    ch_nanopore_input,
+    ch_illumina_input
   )
 
-  // Collect ONT coverage summary files
-  WAPHL_ANALYSIS.out.ont_coverage
+  // Collect coverage analysis summary files
+  WAPHL_ANALYSIS.out.coverage_analysis
     .map { meta, coverage_file -> coverage_file }
-    .collectFile(name: "ont_coverage_summary.tsv",
+    .collectFile(name: "coverage_analysis_summary.tsv",
       keepHeader: true,
       sort: { file -> file.text },
       storeDir: "${params.outdir}/summary")
-    .set { ont_coverage_summary }
+    .set { coverage_analysis_summary }
 }
 
 workflow.onComplete {
@@ -1930,7 +1931,7 @@ workflow.onComplete {
   println("The multiqc report can be found at ${params.outdir}/multiqc/multiqc_report.html")
   println("The consensus fasta files can be found in ${params.outdir}/sample/consensus")
   println("The fasta files are from each phase of assembly: unpolished/reoriented -> clair3 -> polypolish (if illumina reads are supplied) -> pypolca")
-  println("The ONT coverage analysis results can be found at ${params.outdir}/summary/ont_coverage_summary.tsv")
+  println("The coverage analysis results can be found at ${params.outdir}/summary/coverage_analysis_summary.tsv")
   println("The WAPHL analysis results including taxonomic identification can be found at ${params.outdir}/summary/waphl_final_summary.tsv")
   println("Execution status: ${ workflow.success ? 'OK' : 'failed' }")
 }

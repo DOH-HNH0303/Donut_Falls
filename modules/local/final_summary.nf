@@ -9,7 +9,7 @@ process FINAL_SUMMARY {
   file(donut_falls_summary)
   file(mash_taxa_files)
   file(consensus_files)
-  file(ont_coverage_files)
+  file(coverage_files)
 
   output:
   path "waphl_final_summary.tsv", emit: summary
@@ -98,23 +98,25 @@ process FINAL_SUMMARY {
       return 'unknown', 'unknown'
 
 
-  def get_ont_coverage_data(sample, ont_coverage_files):
-      # Extract ONT coverage data for a sample
-      for coverage_file in ont_coverage_files:
-          if sample in coverage_file and '_ont_coverage_summary.tsv' in coverage_file:
+  def get_coverage_data(sample, coverage_files):
+      # Extract coverage data for a sample (ONT or Illumina)
+      for coverage_file in coverage_files:
+          if sample in coverage_file and '_coverage_summary.tsv' in coverage_file:
               try:
                   with open(coverage_file, 'r') as f:
                       lines = f.readlines()
                       if len(lines) > 1:  # Skip header
                           # Get the first data line
                           data_line = lines[1].strip().split('\\t')
-                          if len(data_line) >= 6:
+                          if len(data_line) >= 7:
+                              read_platform = data_line[1]
                               return {
-                                  'ont_total_bases': data_line[1],
-                                  'ont_covered_bases': data_line[2], 
-                                  'ont_coverage_breadth_percent': data_line[3],
-                                  'ont_mean_depth': data_line[4],
-                                  'ont_max_depth': data_line[5]
+                                  f'{read_platform.lower()}_total_bases': data_line[2],
+                                  f'{read_platform.lower()}_covered_bases': data_line[3], 
+                                  f'{read_platform.lower()}_coverage_breadth_percent': data_line[4],
+                                  f'{read_platform.lower()}_mean_depth': data_line[5],
+                                  f'{read_platform.lower()}_max_depth': data_line[6],
+                                  'read_platform': read_platform
                               }
                       # Check for theoretical coverage data
                       for line in lines:
@@ -122,11 +124,13 @@ process FINAL_SUMMARY {
                               continue
                           elif '\\t' in line and not line.startswith('#'):
                               parts = line.strip().split('\\t')
-                              if len(parts) >= 3:
+                              if len(parts) >= 4:
+                                  read_platform = parts[3].lower()
                                   return {
-                                      'ont_genome_size': parts[0],
-                                      'ont_total_read_bases': parts[1],
-                                      'ont_theoretical_coverage': parts[2]
+                                      f'{read_platform}_genome_size': parts[0],
+                                      f'{read_platform}_total_read_bases': parts[1],
+                                      f'{read_platform}_theoretical_coverage': parts[2],
+                                      'read_platform': parts[3]
                                   }
               except Exception as e:
                   print("Error reading {}: {}".format(coverage_file, e))
@@ -196,13 +200,13 @@ process FINAL_SUMMARY {
           # Get all consensus files
           consensus_files = glob.glob('*.fasta')
 
-          # Get all ONT coverage files
-          ont_coverage_files = glob.glob('*_ont_coverage_summary.tsv')
+          # Get all coverage analysis files
+          coverage_files = glob.glob('*_coverage_summary.tsv')
           
           print("Found {} samples in summary".format(len(summary_data)))
           print("Found {} mash taxa files: {}".format(len(mash_files), mash_files))
           print("Found {} consensus files: {}".format(len(consensus_files), consensus_files))
-          print("Found {} ONT coverage files: {}".format(len(ont_coverage_files), ont_coverage_files))
+          print("Found {} coverage analysis files: {}".format(len(coverage_files), coverage_files))
           
           # Process each sample
           for row in summary_data:
@@ -214,9 +218,9 @@ process FINAL_SUMMARY {
               row['mash_taxa'] = mash_taxa
               row['mash_distance'] = mash_distance
 
-              # Get ONT coverage data
-              ont_coverage_data = get_ont_coverage_data(sample, ont_coverage_files)
-              for key, value in ont_coverage_data.items():
+              # Get coverage data (ONT or Illumina)
+              coverage_data = get_coverage_data(sample, coverage_files)
+              for key, value in coverage_data.items():
                   row[key] = value
               
               # Determine assembly type
@@ -240,7 +244,7 @@ process FINAL_SUMMARY {
           print("Enhanced summary created with {} samples".format(len(summary_data)))
           print("Found {} mash taxa files".format(len(mash_files)))
           print("Found {} consensus files".format(len(consensus_files)))
-          print("Found {} ONT coverage files".format(len(ont_coverage_files)))
+          print("Found {} coverage analysis files".format(len(coverage_files)))
           
           # Write versions file
           with open('versions.yml', 'w') as f:
