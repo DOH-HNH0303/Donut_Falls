@@ -125,20 +125,33 @@ process FINAL_SUMMARY {
                               })
                       
                       # Parse theoretical coverage data
-                      for line in lines:
-                          if line.startswith('genome_size'):
-                              continue
-                          elif '\\t' in line and not line.startswith('#') and 'genome_size' in line:
-                              # This is the theoretical coverage line
-                              parts = line.strip().split('\\t')
-                              if len(parts) >= 4:
-                                  platform = parts[3].strip()
-                                  coverage_data.update({
-                                      f'{platform.lower()}_genome_size': parts[0],
-                                      f'{platform.lower()}_total_read_bases': parts[1],
-                                      f'{platform.lower()}_theoretical_coverage': parts[2]
-                                  })
-                                  break
+                      # Look for the line that contains the theoretical coverage header
+                      for i, line in enumerate(lines):
+                          line = line.strip()
+                          
+                          # Look for the theoretical coverage header line
+                          if line == 'genome_size\\ttotal_read_bases\\ttheoretical_coverage\\tread_platform':
+                              # The next line should contain the data
+                              if i + 1 < len(lines):
+                                  data_line = lines[i + 1].strip()
+                                  if data_line and not data_line.startswith('#'):
+                                      parts = data_line.split('\\t')
+                                      if len(parts) >= 4:
+                                          platform = parts[3].strip()
+                                          coverage_data.update({
+                                              f'{platform.lower()}_genome_size': parts[0],
+                                              f'{platform.lower()}_total_read_bases': parts[1],
+                                              f'{platform.lower()}_theoretical_coverage': parts[2]
+                                          })
+                                      elif len(parts) >= 3:
+                                          # Fallback if platform is missing
+                                          platform = read_platform if read_platform else 'ont'
+                                          coverage_data.update({
+                                              f'{platform.lower()}_genome_size': parts[0],
+                                              f'{platform.lower()}_total_read_bases': parts[1],
+                                              f'{platform.lower()}_theoretical_coverage': parts[2]
+                                          })
+                              break
                       
                       # If we found data, return it
                       if coverage_data:
