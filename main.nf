@@ -1907,12 +1907,22 @@ workflow {
 
   DONUT_FALLS(ch_nanopore_input, ch_illumina_input.ifEmpty([]))
 
-  // Run WAPHL_ANALYSIS after DONUT_FALLS
+   // Run WAPHL_ANALYSIS after DONUT_FALLS
   WAPHL_ANALYSIS(
     DONUT_FALLS.out.consensus,
     DONUT_FALLS.out.consensus_files,
-    DONUT_FALLS.out.summary_tsv
+    DONUT_FALLS.out.summary_tsv,
+    ch_nanopore_input
   )
+
+  // Collect ONT coverage summary files
+  WAPHL_ANALYSIS.out.ont_coverage
+    .map { meta, coverage_file -> coverage_file }
+    .collectFile(name: "ont_coverage_summary.tsv",
+      keepHeader: true,
+      sort: { file -> file.text },
+      storeDir: "${params.outdir}/summary")
+    .set { ont_coverage_summary }
 }
 
 workflow.onComplete {
