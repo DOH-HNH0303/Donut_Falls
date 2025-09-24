@@ -6,11 +6,11 @@ process FINAL_SUMMARY {
   time          '30m'
   
   input:
-  file(donut_falls_summary)
-  file(mash_taxa_files)
-  file(consensus_files)
-  file(coverage_files)
-  file(human_contamination_files)
+  path(donut_falls_summary)
+  path('mash_taxa/*', stageAs: 'mash_taxa/*')
+  path('consensus/*', stageAs: 'consensus/*')
+  path('coverage/*', stageAs: 'coverage/*')
+  path('human_contamination/*', stageAs: 'human_contamination/*')
 
   output:
   path "waphl_final_summary.tsv", emit: summary
@@ -82,7 +82,9 @@ process FINAL_SUMMARY {
   def get_mash_taxa_and_distance(sample, mash_files):
       # Extract the top mash taxa hit and distance for a sample
       for mash_file in mash_files:
-          if sample in mash_file:
+          # Extract sample name from file path
+          file_sample = os.path.basename(mash_file).replace('_taxa.txt', '')
+          if sample == file_sample:
               try:
                   with open(mash_file, 'r') as f:
                       lines = f.readlines()
@@ -104,7 +106,9 @@ process FINAL_SUMMARY {
       coverage_data = {}
       
       for coverage_file in coverage_files:
-          if sample in coverage_file and '_coverage_summary.tsv' in coverage_file:
+          # Extract sample name from file path
+          file_sample = os.path.basename(coverage_file).replace('_coverage_summary.tsv', '')
+          if sample == file_sample:
               try:
                   with open(coverage_file, 'r') as f:
                       lines = f.readlines()
@@ -166,7 +170,9 @@ process FINAL_SUMMARY {
   def get_human_contamination_data(sample, human_contamination_files):
       # Extract human contamination data for a sample
       for human_file in human_contamination_files:
-          if sample in human_file and '_human_summary.txt' in human_file:
+          # Extract sample name from file path
+          file_sample = os.path.basename(human_file).replace('_human_summary.txt', '')
+          if sample == file_sample:
               try:
                   with open(human_file, 'r') as f:
                       line = f.readline().strip()
@@ -186,32 +192,38 @@ process FINAL_SUMMARY {
       
       # First priority: pypolca (final polishing step)
       for consensus_file in consensus_files:
-          if sample in consensus_file and '_pypolca.fasta' in consensus_file:
+          file_sample = os.path.basename(consensus_file).split('_')[0]
+          if sample == file_sample and '_pypolca.fasta' in consensus_file:
               return consensus_file
       
       # Second priority: polypolish
       for consensus_file in consensus_files:
-          if sample in consensus_file and '_polypolish.fasta' in consensus_file:
+          file_sample = os.path.basename(consensus_file).split('_')[0]
+          if sample == file_sample and '_polypolish.fasta' in consensus_file:
               return consensus_file
       
       # Third priority: clair3
       for consensus_file in consensus_files:
-          if sample in consensus_file and '_clair3.fasta' in consensus_file:
+          file_sample = os.path.basename(consensus_file).split('_')[0]
+          if sample == file_sample and '_clair3.fasta' in consensus_file:
               return consensus_file
       
       # Fourth priority: reoriented
       for consensus_file in consensus_files:
-          if sample in consensus_file and '_reoriented.fasta' in consensus_file:
+          file_sample = os.path.basename(consensus_file).split('_')[0]
+          if sample == file_sample and '_reoriented.fasta' in consensus_file:
               return consensus_file
       
       # Fifth priority: unicycler (hybrid assembly)
       for consensus_file in consensus_files:
-          if sample in consensus_file and '_unicycler.fasta' in consensus_file:
+          file_sample = os.path.basename(consensus_file).split('_')[0]
+          if sample == file_sample and '_unicycler.fasta' in consensus_file:
               return consensus_file
       
       # Fallback: any fasta file for the sample
       for consensus_file in consensus_files:
-          if sample in consensus_file and consensus_file.endswith('.fasta'):
+          file_sample = os.path.basename(consensus_file).split('_')[0]
+          if sample == file_sample and consensus_file.endswith('.fasta'):
               return consensus_file
       
       return ''
@@ -220,12 +232,14 @@ process FINAL_SUMMARY {
       # Get the sub_fasta filepath if it exists
       # First priority: Look for files with 'sub_' prefix (circular assemblies with special headers)
       for consensus_file in consensus_files:
-          if sample in consensus_file and 'sub_' in consensus_file and consensus_file.endswith('.fasta'):
+          file_sample = os.path.basename(consensus_file).replace('sub_', '').split('_')[0]
+          if sample == file_sample and 'sub_' in consensus_file and consensus_file.endswith('.fasta'):
               return consensus_file
       
       # Second priority: Look for reoriented files as they are submission-ready
       for consensus_file in consensus_files:
-          if sample in consensus_file and '_reoriented' in consensus_file and consensus_file.endswith('.fasta'):
+          file_sample = os.path.basename(consensus_file).split('_')[0]
+          if sample == file_sample and '_reoriented' in consensus_file and consensus_file.endswith('.fasta'):
               return consensus_file
       
       # If neither sub_ files nor reoriented files are found, return empty string
@@ -237,16 +251,16 @@ process FINAL_SUMMARY {
           summary_data = read_tsv_file('${donut_falls_summary}')
           
           # Get all mash taxa files
-          mash_files = glob.glob('*_taxa.txt')
+          mash_files = glob.glob('mash_taxa/*_taxa.txt')
           
           # Get all consensus files
-          consensus_files = glob.glob('*.fasta')
+          consensus_files = glob.glob('consensus/*.fasta')
 
           # Get all coverage analysis files
-          coverage_files = glob.glob('*_coverage_summary.tsv')
+          coverage_files = glob.glob('coverage/*_coverage_summary.tsv')
 
           # Get all human contamination files
-          human_contamination_files = glob.glob('*_human_summary.txt')
+          human_contamination_files = glob.glob('human_contamination/*_human_summary.txt')
           
           print("Found {} samples in summary".format(len(summary_data)))
           print("Found {} mash taxa files: {}".format(len(mash_files), mash_files))
