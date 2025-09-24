@@ -10,6 +10,7 @@ process FINAL_SUMMARY {
   file(mash_taxa_files)
   file(consensus_files)
   file(coverage_files)
+  file(human_contamination_files)
 
   output:
   path "waphl_final_summary.tsv", emit: summary
@@ -162,6 +163,22 @@ process FINAL_SUMMARY {
                   continue
       return coverage_data
 
+  def get_human_contamination_data(sample, human_contamination_files):
+      # Extract human contamination data for a sample
+      for human_file in human_contamination_files:
+          if sample in human_file and '_human_summary.txt' in human_file:
+              try:
+                  with open(human_file, 'r') as f:
+                      line = f.readline().strip()
+                      if line:
+                          parts = line.split('\\t')
+                          if len(parts) >= 3:
+                              # Return the contamination level (none, minimal, low, moderate, high)
+                              return parts[2]  # overall_contamination column
+              except Exception as e:
+                  print("Error reading {}: {}".format(human_file, e))
+                  continue
+      return 'unknown'
 
   def get_consensus_filepath(sample, consensus_files):
       # Get the consensus genome filepath for a sample
@@ -227,11 +244,15 @@ process FINAL_SUMMARY {
 
           # Get all coverage analysis files
           coverage_files = glob.glob('*_coverage_summary.tsv')
+
+          # Get all human contamination files
+          human_contamination_files = glob.glob('*_human_summary.txt')
           
           print("Found {} samples in summary".format(len(summary_data)))
           print("Found {} mash taxa files: {}".format(len(mash_files), mash_files))
           print("Found {} consensus files: {}".format(len(consensus_files), consensus_files))
           print("Found {} coverage analysis files: {}".format(len(coverage_files), coverage_files))
+          print("Found {} human contamination files: {}".format(len(human_contamination_files), human_contamination_files))
           
           # Process each sample
           for row in summary_data:
@@ -247,6 +268,10 @@ process FINAL_SUMMARY {
               coverage_data = get_coverage_data(sample, coverage_files)
               for key, value in coverage_data.items():
                   row[key] = value
+
+              # Get human contamination data
+              human_contamination = get_human_contamination_data(sample, human_contamination_files)
+              row['human_contamination'] = human_contamination
               
               # Determine assembly type
               row['assembly_type'] = determine_assembly_type(row)
@@ -270,6 +295,7 @@ process FINAL_SUMMARY {
           print("Found {} mash taxa files".format(len(mash_files)))
           print("Found {} consensus files".format(len(consensus_files)))
           print("Found {} coverage analysis files".format(len(coverage_files)))
+          print("Found {} human contamination files".format(len(human_contamination_files)))
           
           # Write versions file
           with open('versions.yml', 'w') as f:
