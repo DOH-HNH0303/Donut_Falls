@@ -1,6 +1,7 @@
 #!/usr/bin/env nextflow
 
 include { MASH_TAXA } from '../../modules/local/mash'
+include { MASH_HUMAN_CONTAMINATION } from '../../modules/local/mash'
 include { FINAL_SUMMARY } from '../../modules/local/final_summary'
 include { COVERAGE_ANALYSIS } from '../../modules/local/coverage_analysis'
 
@@ -18,6 +19,10 @@ workflow WAPHL_ANALYSIS {
     // Run MASH_TAXA on consensus files with meta information
     MASH_TAXA(ch_consensus_meta)
     ch_versions = ch_versions.mix(MASH_TAXA.out.versions.first())
+
+    // Run MASH_HUMAN_CONTAMINATION on consensus files with meta information
+    MASH_HUMAN_CONTAMINATION(ch_consensus_meta)
+    ch_versions = ch_versions.mix(MASH_HUMAN_CONTAMINATION.out.versions.first())
 
     // Run COVERAGE_ANALYSIS on consensus files with available reads (ONT or Illumina)
     // Combine ONT and Illumina channels, prioritizing ONT if both are available
@@ -58,6 +63,13 @@ workflow WAPHL_ANALYSIS {
         .ifEmpty([])
         .set { ch_coverage_files }
 
+    // Collect all human contamination files for final summary
+    MASH_HUMAN_CONTAMINATION.out.human_contamination
+        .map { meta, human_file -> human_file }
+        .collect()
+        .ifEmpty([])
+        .set { ch_human_contamination_files }
+
     // Collect all consensus files (including sub_fasta files) for final summary
     ch_consensus_files
         .collect()
@@ -69,13 +81,15 @@ workflow WAPHL_ANALYSIS {
         ch_donut_summary,
         ch_mash_taxa_files,
         ch_all_consensus_files,
-        ch_coverage_files
+        ch_coverage_files,
+        ch_human_contamination_files
     )
     ch_versions = ch_versions.mix(FINAL_SUMMARY.out.versions)
 
     emit:
     mash_taxa = MASH_TAXA.out.taxa
     coverage_analysis = COVERAGE_ANALYSIS.out.summary
+    human_contamination = MASH_HUMAN_CONTAMINATION.out.human_contamination
     final_summary = FINAL_SUMMARY.out.summary
     versions = ch_versions
 }

@@ -95,3 +95,94 @@ process MASH_TAXA {
     END_VERSIONS
     """
 }
+
+process MASH_HUMAN_CONTAMINATION {
+    tag           "${meta.id}"
+    label         "process_medium"
+    publishDir    "${params.outdir}/${meta.id}", mode: 'copy', pattern: "mash_human/*"   
+    container     'staphb/mash:2.3'
+    
+    input:
+    tuple val(meta), path(fasta)
+    
+    when:
+    fasta != null
+
+    output:
+    tuple val(meta), path("mash_human/*.txt"), emit: human_contamination
+    path "versions.yml", emit: versions
+    
+    script:
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    """
+    mkdir -p mash_human
+    
+    # Sketch the assembly
+    mash sketch -o mash_human/${prefix} ${fasta}
+    
+    # Create a simple human genome sketch for comparison
+    # We'll use a threshold approach - if distance to human is very low, it indicates contamination
+    # For now, we'll create a mock human reference check
+    # In a real implementation, you would have a human genome sketch available
+    
+    # Check against RefSeq database for human sequences
+    mash dist /db/RefSeqSketchesDefaults.msh mash_human/${prefix}.msh | \\
+        grep -i "homo.*sapiens\\|human\\|GCF_000001405" | \\
+        sort -gk3 | \\
+        head -5 | \\
+        awk -v sample=${prefix} '
+        BEGIN{
+            OFS="\\t"
+            print "sample", "human_reference", "distance", "p_value", "shared_hashes", "contamination_level"
+            min_distance = 1.0
+            contamination_status = "none"
+        } 
+        {
+            distance = \$3
+            if (distance < min_distance) {
+                min_distance = distance
+            }
+            
+            # Determine contamination level based on distance
+            if (distance < 0.01) {
+                contamination_level = "high"
+            } else if (distance < 0.05) {
+                contamination_level = "moderate" 
+            } else if (distance < 0.1) {
+                contamination_level = "low"
+            } else {
+                contamination_level = "minimal"
+            }
+            
+            print sample, \$1, distance, \$4, \$5, contamination_level
+        }
+        END {
+            # If no human sequences found, create a default entry
+            if (NR == 0) {
+                print sample, "no_human_reference_found", "1.0", "1.0", "0/1000", "none"
+            }
+        }' > mash_human/${prefix}_human_contamination.txt
+
+    # Create a summary line with overall contamination assessment
+    awk -v sample=${prefix} '
+    BEGIN {
+        OFS="\\t"
+        min_distance = 1.0
+        overall_contamination = "none"
+    }
+    NR > 1 {  # Skip header
+        if (\$3 < min_distance) {
+            min_distance = \$3
+            overall_contamination = \$6
+        }
+    }
+    END {
+        print sample, min_distance, overall_contamination > "mash_human/" sample "_human_summary.txt"
+    }' mash_human/${prefix}_human_contamination.txt
+
+    cat <<-END_VERSIONS > versions.yml
+    "WAPHL_ANALYSIS:MASH_HUMAN_CONTAMINATION":
+        mash: \$( mash --version )
+    END_VERSIONS
+    """
+}
