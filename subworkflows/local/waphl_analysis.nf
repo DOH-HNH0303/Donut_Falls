@@ -64,7 +64,7 @@ workflow WAPHL_ANALYSIS {
         .set { ch_coverage_files }
 
     // Collect all human contamination files for final summary
-    MASH_HUMAN_CONTAMINATION.out.human_contamination
+    MASH_HUMAN_CONTAMINATION.out.human_summary
         .map { meta, human_file -> human_file }
         .collect()
         .ifEmpty([])
@@ -90,6 +90,7 @@ workflow WAPHL_ANALYSIS {
     mash_taxa = MASH_TAXA.out.taxa
     coverage_analysis = COVERAGE_ANALYSIS.out.summary
     human_contamination = MASH_HUMAN_CONTAMINATION.out.human_contamination
+    human_summary = MASH_HUMAN_CONTAMINATION.out.human_summary
     final_summary = FINAL_SUMMARY.out.summary
     versions = ch_versions
 }

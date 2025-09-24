@@ -109,7 +109,8 @@ process MASH_HUMAN_CONTAMINATION {
     fasta != null
 
     output:
-    tuple val(meta), path("mash_human/*.txt"), emit: human_contamination
+    tuple val(meta), path("mash_human/*_human_contamination.txt"), emit: human_contamination
+    tuple val(meta), path("mash_human/*_human_summary.txt"), emit: human_summary
     path "versions.yml", emit: versions
     
     script:
