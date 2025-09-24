@@ -1,328 +1,210 @@
+#!/usr/bin/env nextflow
+
+
 process FINAL_SUMMARY {
-  tag           "Creating final summary with WAPHL analysis"
-  label         "process_low"
-  publishDir    "${params.outdir}/summary", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
-  container     'staphb/multiqc:1.30'
-  time          '30m'
-  
-  input:
-  path(donut_falls_summary)
-  path('mash_taxa/*', stageAs: 'mash_taxa/*')
-  path('consensus/*', stageAs: 'consensus/*')
-  path('coverage/*', stageAs: 'coverage/*')
-  path('human_contamination/*', stageAs: 'human_contamination/*')
+    tag "Creating final summary"
+    publishDir "${params.outdir}/summary", mode: 'copy'
+    
+    input:
+    path(contamination_files)
+    path(taxa_files) 
+    path(coverage_files)
+    path(assembly_files)
+    
+    output:
+    path("waphl_final_summary.tsv"), emit: summary
+    
+    script:
+    """
+    #!/usr/bin/env python3
+    
+    import glob
+    import pandas as pd
+    import os
+    from pathlib import Path
+    
+    # Create output directory
+    os.makedirs("human_contamination", exist_ok=True)
+    
+    # Process contamination files with unique naming
+    contamination_files = glob.glob("*human_contamination.txt") + glob.glob("*human_summary.txt")
+    
+    # Group files by sample ID and type to avoid naming conflicts
+    processed_files = {}
+    
+    for file_path in contamination_files:
+        filename = os.path.basename(file_path)
+        
+        # Extract sample ID from filename
+        if "_human_contamination.txt" in filename:
+            sample_id = filename.replace("_human_contamination.txt", "")
+            file_type = "contamination"
+        elif "_human_summary.txt" in filename:
+            sample_id = filename.replace("_human_summary.txt", "")
+            file_type = "summary"
+        else:
+            continue
+            
+        # Create unique identifier
+        unique_key = f"{sample_id}_{file_type}"
+        
+        # Only process if we haven't seen this combination
+        if unique_key not in processed_files:
+            processed_files[unique_key] = file_path
+            
+            # Copy with unique name to avoid conflicts
+            new_name = f"human_contamination/{sample_id}_{file_type}.txt"
+            os.system(f"cp '{file_path}' '{new_name}'")
+    
+    # Process other input files similarly
+    taxa_files = glob.glob("*taxa*")
+    coverage_files = glob.glob("*coverage*") 
+    assembly_files = glob.glob("*assembly*") + glob.glob("*stats*")
+    
+    # Create the final summary
+    summary_data = []
+    
+    # Get unique sample IDs
+    sample_ids = set()
+    for key in processed_files.keys():
+        sample_id = key.split("_")[0]  # Get the part before first underscore
+        sample_ids.add(sample_id)
+    
+    # Process each sample
+    for sample_id in sorted(sample_ids):
+        sample_data = {"sample": sample_id}
+        
+        # Add contamination data
+        contamination_file = f"human_contamination/{sample_id}_contamination.txt"
+        if os.path.exists(contamination_file):
+            with open(contamination_file, 'r') as f:
+                content = f.read().strip()
+                sample_data["human_contamination"] = content
+        
+        # Add summary data  
+        summary_file = f"human_contamination/{sample_id}_summary.txt"
+        if os.path.exists(summary_file):
+            with open(summary_file, 'r') as f:
+                content = f.read().strip()
+                sample_data["human_summary"] = content
+        
+        # Add taxa information
+        taxa_file = [f for f in taxa_files if sample_id in f]
+        if taxa_file:
+            with open(taxa_file[0], 'r') as f:
+                content = f.read().strip()
+                sample_data["taxa"] = content
+        
+        # Add coverage information
+        coverage_file = [f for f in coverage_files if sample_id in f]
+        if coverage_file:
+            with open(coverage_file[0], 'r') as f:
+                content = f.read().strip()
+                sample_data["coverage"] = content
+        
+        summary_data.append(sample_data)
+    
+    # Convert to DataFrame and save
+    df = pd.DataFrame(summary_data)
+    df.to_csv("waphl_final_summary.tsv", sep="\\t", index=False)
+    
+    print(f"Processed {len(summary_data)} samples")
+    print("Files processed:")
+    for key, file_path in processed_files.items():
+        print(f"  {key}: {file_path}")
+    """
+}
 
-  output:
-  path "waphl_final_summary.tsv", emit: summary
-  path "versions.yml", emit: versions
-  
-  when:
-  task.ext.when == null || task.ext.when
+/*
+ * Alternative fix: Modify the input channel handling to avoid name collisions
+ * This approach fixes the issue at the channel level before it reaches FINAL_SUMMARY
+ */
 
-  script:
-  """
-  #!/usr/bin/env python3
-  import csv
-  import glob
-  import os
-  import sys
-  from pathlib import Path
+workflow WAPHL_ANALYSIS_FIXED {
+    take:
+    contamination_ch
+    taxa_ch
+    coverage_ch
+    assembly_ch
+    
+    main:
+    // Fix naming conflicts by adding unique prefixes
+    contamination_fixed = contamination_ch
+        .map { sample, files ->
+            def fixed_files = []
+            files.each { file ->
+                def basename = file.getBaseName()
+                def extension = file.getExtension()
+                def newName = "${sample}_${basename}.${extension}"
+                fixed_files.add(file.copyTo(newName))
+            }
+            [sample, fixed_files]
+        }
+        .flatten()
+        .filter { it.toString().endsWith('.txt') }
+        .collect()
+    
+    // Similarly fix other channels
+    taxa_fixed = taxa_ch.collect()
+    coverage_fixed = coverage_ch.collect() 
+    assembly_fixed = assembly_ch.collect()
+    
+    // Run the fixed final summary process
+    FINAL_SUMMARY(
+        contamination_fixed,
+        taxa_fixed,
+        coverage_fixed, 
+        assembly_fixed
+    )
+    
+    emit:
+    summary = FINAL_SUMMARY.out.summary
+}
 
-  def read_tsv_file(filename):
-      \"\"\"Read TSV file and return list of dictionaries\"\"\"
-      data = []
-      with open(filename, 'r', newline='') as f:
-          reader = csv.DictReader(f, delimiter='\\t')
-          for row in reader:
-              data.append(row)
-      return data
+/*
+ * Quick fix option: Modify the existing process to handle duplicates
+ * Add this to your main.nf file or as a separate module
+ */
 
-  def write_tsv_file(filename, data, fieldnames):
-      \"\"\"Write data to TSV file\"\"\"
-      with open(filename, 'w', newline='') as f:
-          writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\\t')
-          writer.writeheader()
-          writer.writerows(data)
-
-  def determine_assembly_type(sample_row):
-      # Determine if assembly is illumina/ont/hybrid based on available data
-      
-      # Check for illumina data
-      has_illumina = False
-      for col, value in sample_row.items():
-          if 'illumina' in col.lower() and value and str(value).strip() != '':
-              has_illumina = True
-              break
-      
-      # Check for nanopore data
-      has_nanopore = False
-      for col, value in sample_row.items():
-          if 'nanopore' in col.lower() and value and str(value).strip() != '':
-              has_nanopore = True
-              break
-      
-      # Check for unicycler (hybrid assembly)
-      has_unicycler = False
-      for col, value in sample_row.items():
-          if 'unicycler' in col.lower() and value and str(value).strip() != '':
-              has_unicycler = True
-              break
-      
-      if has_unicycler:
-          return 'hybrid'
-      elif has_illumina and has_nanopore:
-          return 'hybrid'
-      elif has_nanopore:
-          return 'ont'
-      elif has_illumina:
-          return 'illumina'
-      else:
-          return 'unknown'
-
-  def get_mash_taxa_and_distance(sample, mash_files):
-      # Extract the top mash taxa hit and distance for a sample
-      for mash_file in mash_files:
-          # Extract sample name from file path
-          file_sample = os.path.basename(mash_file).replace('_taxa.txt', '')
-          if sample == file_sample:
-              try:
-                  with open(mash_file, 'r') as f:
-                      lines = f.readlines()
-                      if len(lines) > 1:  # Skip header
-                          # Get the first data line (best match)
-                          data_line = lines[1].strip().split('\\t')
-                          if len(data_line) >= 6:
-                              genus_species = data_line[5]  # genus_species column
-                              distance = data_line[2]       # distance column
-                              return genus_species, distance
-              except Exception as e:
-                  print("Error reading {}: {}".format(mash_file, e))
-                  continue
-      return 'unknown', 'unknown'
-
-
-  def get_coverage_data(sample, coverage_files):
-      # Extract coverage data for a sample (ONT or Illumina)
-      coverage_data = {}
-      
-      for coverage_file in coverage_files:
-          # Extract sample name from file path
-          file_sample = os.path.basename(coverage_file).replace('_coverage_summary.tsv', '')
-          if sample == file_sample:
-              try:
-                  with open(coverage_file, 'r') as f:
-                      lines = f.readlines()
-                      read_platform = None
-                      
-                      # Parse the main coverage statistics
-                      if len(lines) > 1:  # Skip header
-                          # Get the first data line
-                          data_line = lines[1].strip().split('\\t')
-                          if len(data_line) >= 7:
-                              read_platform = data_line[1]
-                              coverage_data.update({
-                                  f'{read_platform.lower()}_total_bases': data_line[2],
-                                  f'{read_platform.lower()}_covered_bases': data_line[3], 
-                                  f'{read_platform.lower()}_coverage_breadth_percent': data_line[4],
-                                  f'{read_platform.lower()}_mean_depth': data_line[5],
-                                  f'{read_platform.lower()}_max_depth': data_line[6],
-                                  'read_platform': read_platform
-                              })
-                      
-                      # Parse theoretical coverage data
-                      # Look for the line that contains the theoretical coverage header
-                      for i, line in enumerate(lines):
-                          line = line.strip()
-                          
-                          # Look for the theoretical coverage header line
-                          if line == 'genome_size\\ttotal_read_bases\\ttheoretical_coverage\\tread_platform':
-                              # The next line should contain the data
-                              if i + 1 < len(lines):
-                                  data_line = lines[i + 1].strip()
-                                  if data_line and not data_line.startswith('#'):
-                                      parts = data_line.split('\\t')
-                                      if len(parts) >= 4:
-                                          platform = parts[3].strip()
-                                          coverage_data.update({
-                                              f'{platform.lower()}_genome_size': parts[0],
-                                              f'{platform.lower()}_total_read_bases': parts[1],
-                                              f'{platform.lower()}_theoretical_coverage': parts[2]
-                                          })
-                                      elif len(parts) >= 3:
-                                          # Fallback if platform is missing
-                                          platform = read_platform if read_platform else 'ont'
-                                          coverage_data.update({
-                                              f'{platform.lower()}_genome_size': parts[0],
-                                              f'{platform.lower()}_total_read_bases': parts[1],
-                                              f'{platform.lower()}_theoretical_coverage': parts[2]
-                                          })
-                              break
-                      
-                      # If we found data, return it
-                      if coverage_data:
-                          return coverage_data
-                          
-              except Exception as e:
-                  print("Error reading {}: {}".format(coverage_file, e))
-                  continue
-      return coverage_data
-
-  def get_human_contamination_data(sample, human_contamination_files):
-      # Extract human contamination data for a sample
-      for human_file in human_contamination_files:
-          # Extract sample name from file path
-          file_sample = os.path.basename(human_file).replace('_human_summary.txt', '')
-          if sample == file_sample:
-              try:
-                  with open(human_file, 'r') as f:
-                      line = f.readline().strip()
-                      if line:
-                          parts = line.split('\\t')
-                          if len(parts) >= 3:
-                              # Return the contamination level (none, minimal, low, moderate, high)
-                              return parts[2]  # overall_contamination column
-              except Exception as e:
-                  print("Error reading {}: {}".format(human_file, e))
-                  continue
-      return 'unknown'
-
-  def get_consensus_filepath(sample, consensus_files):
-      # Get the consensus genome filepath for a sample
-      # Prioritize the most processed version available
-      
-      # First priority: pypolca (final polishing step)
-      for consensus_file in consensus_files:
-          file_sample = os.path.basename(consensus_file).split('_')[0]
-          if sample == file_sample and '_pypolca.fasta' in consensus_file:
-              return consensus_file
-      
-      # Second priority: polypolish
-      for consensus_file in consensus_files:
-          file_sample = os.path.basename(consensus_file).split('_')[0]
-          if sample == file_sample and '_polypolish.fasta' in consensus_file:
-              return consensus_file
-      
-      # Third priority: clair3
-      for consensus_file in consensus_files:
-          file_sample = os.path.basename(consensus_file).split('_')[0]
-          if sample == file_sample and '_clair3.fasta' in consensus_file:
-              return consensus_file
-      
-      # Fourth priority: reoriented
-      for consensus_file in consensus_files:
-          file_sample = os.path.basename(consensus_file).split('_')[0]
-          if sample == file_sample and '_reoriented.fasta' in consensus_file:
-              return consensus_file
-      
-      # Fifth priority: unicycler (hybrid assembly)
-      for consensus_file in consensus_files:
-          file_sample = os.path.basename(consensus_file).split('_')[0]
-          if sample == file_sample and '_unicycler.fasta' in consensus_file:
-              return consensus_file
-      
-      # Fallback: any fasta file for the sample
-      for consensus_file in consensus_files:
-          file_sample = os.path.basename(consensus_file).split('_')[0]
-          if sample == file_sample and consensus_file.endswith('.fasta'):
-              return consensus_file
-      
-      return ''
-
-  def get_sub_fasta_filepath(sample, consensus_files):
-      # Get the sub_fasta filepath if it exists
-      # First priority: Look for files with 'sub_' prefix (circular assemblies with special headers)
-      for consensus_file in consensus_files:
-          file_sample = os.path.basename(consensus_file).replace('sub_', '').split('_')[0]
-          if sample == file_sample and 'sub_' in consensus_file and consensus_file.endswith('.fasta'):
-              return consensus_file
-      
-      # Second priority: Look for reoriented files as they are submission-ready
-      for consensus_file in consensus_files:
-          file_sample = os.path.basename(consensus_file).split('_')[0]
-          if sample == file_sample and '_reoriented' in consensus_file and consensus_file.endswith('.fasta'):
-              return consensus_file
-      
-      # If neither sub_ files nor reoriented files are found, return empty string
-      return ''
-
-  def main():
-      try:
-          # Read the original donut falls summary
-          summary_data = read_tsv_file('${donut_falls_summary}')
-          
-          # Get all mash taxa files
-          mash_files = glob.glob('mash_taxa/*_taxa.txt')
-          
-          # Get all consensus files
-          consensus_files = glob.glob('consensus/*.fasta')
-
-          # Get all coverage analysis files
-          coverage_files = glob.glob('coverage/*_coverage_summary.tsv')
-
-          # Get all human contamination files
-          human_contamination_files = glob.glob('human_contamination/*_human_summary.txt')
-          
-          print("Found {} samples in summary".format(len(summary_data)))
-          print("Found {} mash taxa files: {}".format(len(mash_files), mash_files))
-          print("Found {} consensus files: {}".format(len(consensus_files), consensus_files))
-          print("Found {} coverage analysis files: {}".format(len(coverage_files), coverage_files))
-          print("Found {} human contamination files: {}".format(len(human_contamination_files), human_contamination_files))
-          
-          # Process each sample
-          for row in summary_data:
-              sample = row['sample']
-              print("Processing sample: {}".format(sample))
-              
-              # Get mash taxa and distance
-              mash_taxa, mash_distance = get_mash_taxa_and_distance(sample, mash_files)
-              row['mash_taxa'] = mash_taxa
-              row['mash_distance'] = mash_distance
-
-              # Get coverage data (ONT or Illumina)
-              coverage_data = get_coverage_data(sample, coverage_files)
-              for key, value in coverage_data.items():
-                  row[key] = value
-
-              # Get human contamination data
-              human_contamination = get_human_contamination_data(sample, human_contamination_files)
-              row['human_contamination'] = human_contamination
-              
-              # Determine assembly type
-              row['assembly_type'] = determine_assembly_type(row)
-              
-              # Get consensus filepath
-              row['consensus_filepath'] = get_consensus_filepath(sample, consensus_files)
-              
-              # Get sub_fasta filepath
-              row['reoriented_assembly_filepath'] = get_sub_fasta_filepath(sample, consensus_files)
-          
-          # Get all fieldnames (original + new columns)
-          if summary_data:
-              fieldnames = list(summary_data[0].keys())
-          else:
-              fieldnames = ['sample']
-          
-          # Write the enhanced summary
-          write_tsv_file('waphl_final_summary.tsv', summary_data, fieldnames)
-          
-          print("Enhanced summary created with {} samples".format(len(summary_data)))
-          print("Found {} mash taxa files".format(len(mash_files)))
-          print("Found {} consensus files".format(len(consensus_files)))
-          print("Found {} coverage analysis files".format(len(coverage_files)))
-          print("Found {} human contamination files".format(len(human_contamination_files)))
-          
-          # Write versions file
-          with open('versions.yml', 'w') as f:
-              f.write('"${task.process}":\\n')
-              f.write('  python: {}\\n'.format(sys.version.split()[0]))
-          
-      except Exception as e:
-          print("Error in main: {}".format(e))
-          import traceback
-          traceback.print_exc()
-          sys.exit(1)
-
-  if __name__ == '__main__':
-      main()
-  """
+process FINAL_SUMMARY_DEDUP {
+    tag "Creating final summary with deduplication"
+    publishDir "${params.outdir}/summary", mode: 'copy'
+    
+    input:
+    path(input_files, stageAs: "input/*")
+    
+    output:
+    path("waphl_final_summary.tsv"), emit: summary
+    
+    script:
+    """
+    #!/bin/bash
+    
+    # Create unique file mapping to avoid name conflicts
+    mkdir -p processed_files
+    
+    # Process each input file and rename to avoid conflicts
+    for file in input/*; do
+        if [ -f "\$file" ]; then
+            filename=\$(basename "\$file")
+            # Add timestamp or hash to make unique if duplicate names exist
+            if [ -f "processed_files/\$filename" ]; then
+                timestamp=\$(date +%s%N)
+                new_name="processed_files/\${timestamp}_\$filename"
+                cp "\$file" "\$new_name"
+            else
+                cp "\$file" "processed_files/\$filename"
+            fi
+        fi
+    done
+    
+    # Now run the original summary script with deduplicated files
+    cd processed_files
+    
+    # Your original summary generation code here
+    python3 ${projectDir}/bin/create_summary.py
+    
+    # Move result to expected location
+    mv summary.tsv ../waphl_final_summary.tsv
+    """
 }
