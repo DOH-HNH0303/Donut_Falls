@@ -16,12 +16,38 @@ workflow WAPHL_ANALYSIS {
     main:
     ch_versions = Channel.empty()
 
-    // Run MASH_TAXA on consensus files with meta information
-    MASH_TAXA(ch_consensus_meta)
+    // Filter consensus files to only process the final/best version for each sample
+    // Priority: pypolca > polypolish > clair3 > reoriented > unicycler
+    ch_consensus_meta
+        .groupTuple(by: 0)
+        .map { meta, fastas ->
+            // Find the best fasta file for this sample
+            def best_fasta = null
+            def priority_order = ['pypolca', 'polypolish', 'clair3', 'reoriented', 'unicycler']
+            
+            for (priority in priority_order) {
+                def matching_fasta = fastas.find { it.name.contains("_${priority}.fasta") }
+                if (matching_fasta) {
+                    best_fasta = matching_fasta
+                    break
+                }
+            }
+            
+            // If no priority match found, take the first one
+            if (!best_fasta) {
+                best_fasta = fastas[0]
+            }
+            
+            tuple(meta, best_fasta)
+        }
+        .set { ch_consensus_final }
+
+    // Run MASH_TAXA on final consensus files only
+    MASH_TAXA(ch_consensus_final)
     ch_versions = ch_versions.mix(MASH_TAXA.out.versions.first())
 
-    // Run MASH_HUMAN_CONTAMINATION on consensus files with meta information
-    MASH_HUMAN_CONTAMINATION(ch_consensus_meta)
+    // Run MASH_HUMAN_CONTAMINATION on final consensus files only
+    MASH_HUMAN_CONTAMINATION(ch_consensus_final)
     ch_versions = ch_versions.mix(MASH_HUMAN_CONTAMINATION.out.versions.first())
 
     // Run COVERAGE_ANALYSIS on consensus files with available reads (ONT or Illumina)
@@ -39,7 +65,7 @@ workflow WAPHL_ANALYSIS {
             def selected_reads = ont_idx >= 0 ? reads_list[ont_idx] : reads_list[0]
             tuple(meta, selected_reads)
         }
-        .join(ch_consensus_meta, by: 0, remainder: false)
+        .join(ch_consensus_final, by: 0, remainder: false)
         .map { meta, reads, fasta -> tuple(meta, fasta, reads) }
         .set { ch_coverage_input }
 
