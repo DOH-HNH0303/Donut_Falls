@@ -168,7 +168,7 @@ process FINAL_SUMMARY {
       return coverage_data
 
   def get_human_contamination_data(sample, human_contamination_files):
-      # Extract human contamination data for a sample
+      # Extract human contamination data for a sample - return MASH distance instead of contamination level
       for human_file in human_contamination_files:
           # Extract sample name from file path
           file_sample = os.path.basename(human_file).replace('_human_summary.txt', '')
@@ -178,9 +178,9 @@ process FINAL_SUMMARY {
                       line = f.readline().strip()
                       if line:
                           parts = line.split('\\t')
-                          if len(parts) >= 3:
-                              # Return the contamination level (none, minimal, low, moderate, high)
-                              return parts[2]  # overall_contamination column
+                          if len(parts) >= 2:
+                              # Return the MASH distance instead of contamination level
+                              return parts[1]  # min_distance column
               except Exception as e:
                   print("Error reading {}: {}".format(human_file, e))
                   continue
@@ -283,7 +283,7 @@ process FINAL_SUMMARY {
               for key, value in coverage_data.items():
                   row[key] = value
 
-              # Get human contamination data
+              # Get human contamination data (MASH distance)
               human_contamination = get_human_contamination_data(sample, human_contamination_files)
               row['human_contamination'] = human_contamination
               
