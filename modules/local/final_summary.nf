@@ -186,61 +186,64 @@ process FINAL_SUMMARY {
                   continue
       return 'unknown'
 
-  def get_consensus_filepath(sample, consensus_files):
+  def get_consensus_filepath(sample, consensus_files, outdir):
       # Get the consensus genome filepath for a sample
       # Prioritize the most processed version available
+      # Return the full path where the file will be published
       
       # First priority: pypolca (final polishing step)
       for consensus_file in consensus_files:
           file_sample = os.path.basename(consensus_file).split('_')[0]
           if sample == file_sample and '_pypolca.fasta' in consensus_file:
-              return consensus_file
+              return os.path.join(outdir, sample, 'pypolca', os.path.basename(consensus_file))
       
       # Second priority: polypolish
       for consensus_file in consensus_files:
           file_sample = os.path.basename(consensus_file).split('_')[0]
           if sample == file_sample and '_polypolish.fasta' in consensus_file:
-              return consensus_file
+              return os.path.join(outdir, sample, 'polypolish', os.path.basename(consensus_file))
       
       # Third priority: clair3
       for consensus_file in consensus_files:
           file_sample = os.path.basename(consensus_file).split('_')[0]
           if sample == file_sample and '_clair3.fasta' in consensus_file:
-              return consensus_file
+              return os.path.join(outdir, sample, 'clair3', os.path.basename(consensus_file))
       
       # Fourth priority: reoriented
       for consensus_file in consensus_files:
           file_sample = os.path.basename(consensus_file).split('_')[0]
           if sample == file_sample and '_reoriented.fasta' in consensus_file:
-              return consensus_file
+              return os.path.join(outdir, sample, 'dnaapler', os.path.basename(consensus_file))
       
       # Fifth priority: unicycler (hybrid assembly)
       for consensus_file in consensus_files:
           file_sample = os.path.basename(consensus_file).split('_')[0]
           if sample == file_sample and '_unicycler.fasta' in consensus_file:
-              return consensus_file
+              return os.path.join(outdir, sample, 'unicycler', os.path.basename(consensus_file))
       
       # Fallback: any fasta file for the sample
       for consensus_file in consensus_files:
           file_sample = os.path.basename(consensus_file).split('_')[0]
           if sample == file_sample and consensus_file.endswith('.fasta'):
-              return consensus_file
+              return os.path.join(outdir, sample, os.path.basename(consensus_file))
       
       return ''
 
-  def get_sub_fasta_filepath(sample, consensus_files):
+  def get_sub_fasta_filepath(sample, consensus_files, outdir):
       # Get the sub_fasta filepath if it exists
+      # Return the full path where the file will be published
+      
       # First priority: Look for files with 'sub_' prefix (circular assemblies with special headers)
       for consensus_file in consensus_files:
           file_sample = os.path.basename(consensus_file).replace('sub_', '').split('_')[0]
           if sample == file_sample and 'sub_' in consensus_file and consensus_file.endswith('.fasta'):
-              return consensus_file
+              return os.path.join(outdir, sample, 'consensus', os.path.basename(consensus_file))
       
       # Second priority: Look for reoriented files as they are submission-ready
       for consensus_file in consensus_files:
           file_sample = os.path.basename(consensus_file).split('_')[0]
           if sample == file_sample and '_reoriented' in consensus_file and consensus_file.endswith('.fasta'):
-              return consensus_file
+              return os.path.join(outdir, sample, 'dnaapler', os.path.basename(consensus_file))
       
       # If neither sub_ files nor reoriented files are found, return empty string
       return ''
@@ -291,10 +294,10 @@ process FINAL_SUMMARY {
               row['assembly_type'] = determine_assembly_type(row)
               
               # Get consensus filepath
-              row['consensus_filepath'] = get_consensus_filepath(sample, consensus_files)
+              row['consensus_filepath'] = get_consensus_filepath(sample, consensus_files, '${params.outdir}')
               
               # Get sub_fasta filepath
-              row['reoriented_assembly_filepath'] = get_sub_fasta_filepath(sample, consensus_files)
+              row['reoriented_assembly_filepath'] = get_sub_fasta_filepath(sample, consensus_files, '${params.outdir}')
           
           # Get all fieldnames (original + new columns)
           if summary_data:
