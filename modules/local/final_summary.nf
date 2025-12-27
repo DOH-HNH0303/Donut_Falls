@@ -7,7 +7,7 @@ process FINAL_SUMMARY {
   
   input:
   path(donut_falls_summary)
-  path('mash_taxa/*', stageAs: 'mash_taxa/*')
+  path('sourmash_taxa/*', stageAs: 'sourmash_taxa/*')
   path('consensus/*', stageAs: 'consensus/*')
   path('coverage/*', stageAs: 'coverage/*')
   path('human_contamination/*', stageAs: 'human_contamination/*')
@@ -80,7 +80,7 @@ process FINAL_SUMMARY {
           return 'unknown'
 
   def get_mash_taxa_and_distance(sample, mash_files):
-      # Extract the top mash taxa hit and distance for a sample
+      # Extract the top sourmash taxa hit and containment for a sample
       for mash_file in mash_files:
           # Extract sample name from file path
           file_sample = os.path.basename(mash_file).replace('_taxa.txt', '')
@@ -93,7 +93,7 @@ process FINAL_SUMMARY {
                           data_line = lines[1].strip().split('\\t')
                           if len(data_line) >= 6:
                               genus_species = data_line[5]  # genus_species column
-                              distance = data_line[2]       # distance column
+                              distance = data_line[2]       # containment column (sourmash)
                               return genus_species, distance
               except Exception as e:
                   print("Error reading {}: {}".format(mash_file, e))
@@ -168,7 +168,7 @@ process FINAL_SUMMARY {
       return coverage_data
 
   def get_human_contamination_data(sample, human_contamination_files):
-      # Extract human contamination data for a sample - return MASH distance instead of contamination level
+      # Extract human contamination data for a sample - return sourmash containment instead of contamination level
       for human_file in human_contamination_files:
           # Extract sample name from file path
           file_sample = os.path.basename(human_file).replace('_human_summary.txt', '')
@@ -179,8 +179,8 @@ process FINAL_SUMMARY {
                       if line:
                           parts = line.split('\\t')
                           if len(parts) >= 2:
-                              # Return the MASH distance instead of contamination level
-                              return parts[1]  # min_distance column
+                              # Return the sourmash containment instead of contamination level
+                              return parts[1]  # containment column
               except Exception as e:
                   print("Error reading {}: {}".format(human_file, e))
                   continue
@@ -253,8 +253,8 @@ process FINAL_SUMMARY {
           # Read the original donut falls summary
           summary_data = read_tsv_file('${donut_falls_summary}')
           
-          # Get all mash taxa files
-          mash_files = glob.glob('mash_taxa/*_taxa.txt')
+          # Get all sourmash taxa files
+          mash_files = glob.glob('sourmash_taxa/*_taxa.txt')
           
           # Get all consensus files
           consensus_files = glob.glob('consensus/*.fasta')
@@ -266,7 +266,7 @@ process FINAL_SUMMARY {
           human_contamination_files = glob.glob('human_contamination/*_human_summary.txt')
           
           print("Found {} samples in summary".format(len(summary_data)))
-          print("Found {} mash taxa files: {}".format(len(mash_files), mash_files))
+          print("Found {} sourmash taxa files: {}".format(len(mash_files), mash_files))
           print("Found {} consensus files: {}".format(len(consensus_files), consensus_files))
           print("Found {} coverage analysis files: {}".format(len(coverage_files), coverage_files))
           print("Found {} human contamination files: {}".format(len(human_contamination_files), human_contamination_files))

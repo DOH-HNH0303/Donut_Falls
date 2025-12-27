@@ -1,13 +1,13 @@
 #!/usr/bin/env nextflow
 
-include { MASH_TAXA } from '../../modules/local/mash'
-include { MASH_HUMAN_CONTAMINATION } from '../../modules/local/mash'
+include { SOURMASH_TAXA } from '../../modules/local/sourmash'
+include { SOURMASH_HUMAN_CONTAMINATION } from '../../modules/local/sourmash'
 include { FINAL_SUMMARY } from '../../modules/local/final_summary'
 include { COVERAGE_ANALYSIS } from '../../modules/local/coverage_analysis'
 
 workflow WAPHL_ANALYSIS {
     take:
-    ch_consensus_meta     // channel: [ val(meta), file(fasta) ] - for MASH_TAXA
+    ch_consensus_meta     // channel: [ val(meta), file(fasta) ] - for SOURMASH_TAXA
     ch_consensus_files    // channel: file(fasta) - from copy process, includes sub_fasta files
     ch_donut_summary      // channel: file(donut_falls_summary.tsv)
     ch_nanopore_input     // channel: [ val(meta), file(nanopore_fastq) ] - for COVERAGE_ANALYSIS
@@ -21,16 +21,12 @@ workflow WAPHL_ANALYSIS {
     ch_consensus_meta
         .groupTuple(by: 0)
         .map { meta, fastas ->
-            // Find the best fasta file for this sample
-            def best_fasta = null
+            // Find the best fasta file for this sample using priority order
             def priority_order = ['pypolca', 'polypolish', 'clair3', 'reoriented', 'unicycler']
             
-            for (priority in priority_order) {
-                def matching_fasta = fastas.find { it.name.contains("_${priority}.fasta") }
-                if (matching_fasta) {
-                    best_fasta = matching_fasta
-                    break
-                }
+            // Use findResult to iterate through priorities and return first match
+            def best_fasta = priority_order.findResult { priority ->
+                fastas.find { fasta -> fasta.name.contains("_${priority}.fasta") }
             }
             
             // If no priority match found, take the first one
@@ -42,13 +38,13 @@ workflow WAPHL_ANALYSIS {
         }
         .set { ch_consensus_final }
 
-    // Run MASH_TAXA on final consensus files only
-    MASH_TAXA(ch_consensus_final)
-    ch_versions = ch_versions.mix(MASH_TAXA.out.versions.first())
+    // Run SOURMASH_TAXA on final consensus files only
+    SOURMASH_TAXA(ch_consensus_final)
+    ch_versions = ch_versions.mix(SOURMASH_TAXA.out.versions.first())
 
-    // Run MASH_HUMAN_CONTAMINATION on final consensus files only
-    MASH_HUMAN_CONTAMINATION(ch_consensus_final)
-    ch_versions = ch_versions.mix(MASH_HUMAN_CONTAMINATION.out.versions.first())
+    // Run SOURMASH_HUMAN_CONTAMINATION on final consensus files only
+    SOURMASH_HUMAN_CONTAMINATION(ch_consensus_final)
+    ch_versions = ch_versions.mix(SOURMASH_HUMAN_CONTAMINATION.out.versions.first())
 
     // Run COVERAGE_ANALYSIS on consensus files with available reads (ONT or Illumina)
     // Combine ONT and Illumina channels, prioritizing ONT if both are available
@@ -75,23 +71,23 @@ workflow WAPHL_ANALYSIS {
 
 
 
-    // Collect all mash taxa files for final summary
-    MASH_TAXA.out.taxa
-        .map { meta, taxa_file -> taxa_file }
+    // Collect all sourmash taxa files for final summary
+    SOURMASH_TAXA.out.taxa
+        .map { _meta, taxa_file -> taxa_file }
         .collect()
         .ifEmpty([])
         .set { ch_mash_taxa_files }
 
     // Collect all coverage analysis files for final summary
     COVERAGE_ANALYSIS.out.summary
-        .map { meta, coverage_file -> coverage_file }
+        .map { _meta, coverage_file -> coverage_file }
         .collect()
         .ifEmpty([])
         .set { ch_coverage_files }
 
     // Collect all human contamination files for final summary
-    MASH_HUMAN_CONTAMINATION.out.human_summary
-        .map { meta, human_file -> human_file }
+    SOURMASH_HUMAN_CONTAMINATION.out.human_summary
+        .map { _meta, human_file -> human_file }
         .collect()
         .ifEmpty([])
         .set { ch_human_contamination_files }
@@ -113,10 +109,10 @@ workflow WAPHL_ANALYSIS {
     ch_versions = ch_versions.mix(FINAL_SUMMARY.out.versions)
 
     emit:
-    mash_taxa = MASH_TAXA.out.taxa
+    mash_taxa = SOURMASH_TAXA.out.taxa
     coverage_analysis = COVERAGE_ANALYSIS.out.summary
-    human_contamination = MASH_HUMAN_CONTAMINATION.out.human_contamination
-    human_summary = MASH_HUMAN_CONTAMINATION.out.human_summary
+    human_contamination = SOURMASH_HUMAN_CONTAMINATION.out.human_contamination
+    human_summary = SOURMASH_HUMAN_CONTAMINATION.out.human_summary
     final_summary = FINAL_SUMMARY.out.summary
     versions = ch_versions
 }
