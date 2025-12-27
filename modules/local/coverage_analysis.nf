@@ -17,7 +17,6 @@ process COVERAGE_ANALYSIS {
   task.ext.when == null || task.ext.when
 
   script:
-  def args   = task.ext.args   ?: ''
   def prefix = task.ext.prefix ?: "${meta.id}"
   
   // Determine read type based on file structure
@@ -86,22 +85,10 @@ process COVERAGE_ANALYSIS {
     }
   }
   END {
-    mean_depth = (covered_bases > 0) ? sum_depth / covered_bases : 0
     coverage_breadth = (total_bases > 0) ? (covered_bases / total_bases) * 100 : 0
-    print "sample\\tread_platform\\ttotal_bases\\tcovered_bases\\tcoverage_breadth_percent\\tmean_depth\\tmax_depth"
-    print "${prefix}\\t" read_platform "\\t" total_bases "\\t" covered_bases "\\t" coverage_breadth "\\t" mean_depth "\\t" max_depth
+    print "sample\\tread_platform\\ttotal_bases\\tcovered_bases\\tcoverage_breadth_percent\\tmax_depth"
+    print "${prefix}\\t" read_platform "\\t" total_bases "\\t" covered_bases "\\t" coverage_breadth "\\t" max_depth
   }' read_platform="\$read_platform" coverage_analysis/${prefix}_depth.txt > coverage_analysis/${prefix}_coverage_summary.tsv
-
-  # Get genome size from fasta index
-  genome_size=\$(awk '{sum+=\$2} END {print sum}' ${fasta}.fai)
-
-  # Calculate theoretical coverage from read data
-  theoretical_coverage=\$(awk -v reads=\$total_bases_reads -v genome=\$genome_size 'BEGIN {printf "%.2f", reads/genome}')
-
-  # Add theoretical coverage to summary
-  echo -e "\\n# Theoretical coverage based on read data" >> coverage_analysis/${prefix}_coverage_summary.tsv
-  echo -e "genome_size\\ttotal_read_bases\\ttheoretical_coverage\\tread_platform" >> coverage_analysis/${prefix}_coverage_summary.tsv
-  echo -e "\$genome_size\\t\$total_bases_reads\\t\$theoretical_coverage\\t\$read_platform" >> coverage_analysis/${prefix}_coverage_summary.tsv
 
   # Create a coverage histogram
   awk '{print \$3}' coverage_analysis/${prefix}_depth.txt | \\
