@@ -1,7 +1,7 @@
 #!/usr/bin/env nextflow
 
 include { SOURMASH_TAXA } from '../../modules/local/sourmash'
-include { SOURMASH_HUMAN_CONTAMINATION } from '../../modules/local/sourmash'
+include { MASH_HUMAN_CONTAMINATION } from '../../modules/local/mash'
 include { FINAL_SUMMARY } from '../../modules/local/final_summary'
 include { COVERAGE_ANALYSIS } from '../../modules/local/coverage_analysis'
 
@@ -42,9 +42,9 @@ workflow WAPHL_ANALYSIS {
     SOURMASH_TAXA(ch_consensus_final)
     ch_versions = ch_versions.mix(SOURMASH_TAXA.out.versions.first())
 
-    // Run SOURMASH_HUMAN_CONTAMINATION on final consensus files only
-    SOURMASH_HUMAN_CONTAMINATION(ch_consensus_final)
-    ch_versions = ch_versions.mix(SOURMASH_HUMAN_CONTAMINATION.out.versions.first())
+    // Run MASH_HUMAN_CONTAMINATION on final consensus files only
+    MASH_HUMAN_CONTAMINATION(ch_consensus_final)
+    ch_versions = ch_versions.mix(MASH_HUMAN_CONTAMINATION.out.versions.first())
 
     // Run COVERAGE_ANALYSIS on consensus files with available reads (ONT or Illumina)
     // Combine ONT and Illumina channels, prioritizing ONT if both are available
@@ -86,7 +86,7 @@ workflow WAPHL_ANALYSIS {
         .set { ch_coverage_files }
 
     // Collect all human contamination files for final summary
-    SOURMASH_HUMAN_CONTAMINATION.out.human_summary
+    MASH_HUMAN_CONTAMINATION.out.human_summary
         .map { _meta, human_file -> human_file }
         .collect()
         .ifEmpty([])
@@ -111,8 +111,8 @@ workflow WAPHL_ANALYSIS {
     emit:
     mash_taxa = SOURMASH_TAXA.out.taxa
     coverage_analysis = COVERAGE_ANALYSIS.out.summary
-    human_contamination = SOURMASH_HUMAN_CONTAMINATION.out.human_contamination
-    human_summary = SOURMASH_HUMAN_CONTAMINATION.out.human_summary
+    human_contamination = MASH_HUMAN_CONTAMINATION.out.human_contamination
+    human_summary = MASH_HUMAN_CONTAMINATION.out.human_summary
     final_summary = FINAL_SUMMARY.out.summary
     versions = ch_versions
 }

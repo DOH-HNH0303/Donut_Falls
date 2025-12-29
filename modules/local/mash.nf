@@ -6,25 +6,45 @@ process MASH_TAXA {
     
     input:
     tuple val(meta), path(fasta)
-    
-    when:
-    fasta != null && !fasta.name.contains('reoriented')
 
     output:
     tuple val(meta), path("mash_taxa/*.txt"), emit: taxa
     path "versions.yml", emit: versions
     
+    when:
+    fasta != null && !fasta.name.contains('reoriented')
+    
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
+    def database = params.mash_db ?: ''
     """
     mkdir -p mash_taxa
     
     # Sketch the assembly
     mash sketch -o mash_taxa/${prefix} ${fasta}
     
+    # Check if database is provided
+    if [ -z "${database}" ]; then
+        echo "WARNING: No Mash database specified!" >&2
+        echo "Provide --mash_db to enable taxonomic classification" >&2
+        echo "Creating empty output..." >&2
+        echo -e "sample\\treference\\tdistance\\tp_value\\tshared_hashes\\tgenus_species" > mash_taxa/${prefix}_taxa.txt
+        echo -e "${prefix}\\tno_database_provided\\t1.0\\t1.0\\t0/1000\\tUnknown" >> mash_taxa/${prefix}_taxa.txt
+        exit 0
+    fi
+    
+    # Check if database file exists
+    if [ ! -f "${database}" ]; then
+        echo "WARNING: Mash database not found at: ${database}" >&2
+        echo "Creating empty output..." >&2
+        echo -e "sample\\treference\\tdistance\\tp_value\\tshared_hashes\\tgenus_species" > mash_taxa/${prefix}_taxa.txt
+        echo -e "${prefix}\\tdatabase_not_found\\t1.0\\t1.0\\t0/1000\\tUnknown" >> mash_taxa/${prefix}_taxa.txt
+        exit 0
+    fi
+    
     # Find closest matches in reference database
     # Fixed AWK script that works with different AWK implementations
-    mash dist /db/RefSeqSketchesDefaults.msh mash_taxa/${prefix}.msh | \\
+    mash dist ${database} mash_taxa/${prefix}.msh | \\
         sort -gk3 | \\
         head -10 | \\
         awk -v sample=${prefix} '
@@ -104,30 +124,47 @@ process MASH_HUMAN_CONTAMINATION {
     
     input:
     tuple val(meta), path(fasta)
-    
-    when:
-    fasta != null
 
     output:
     tuple val(meta), path("mash_human/*_human_contamination.txt"), emit: human_contamination
     tuple val(meta), path("mash_human/*_human_summary.txt"), emit: human_summary
     path "versions.yml", emit: versions
     
+    when:
+    fasta != null
+    
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
+    def database_human = params.mash_db_human ?: params.mash_db ?: ''
     """
     mkdir -p mash_human
     
     # Sketch the assembly
     mash sketch -o mash_human/${prefix} ${fasta}
     
-    # Create a simple human genome sketch for comparison
-    # We'll use a threshold approach - if distance to human is very low, it indicates contamination
-    # For now, we'll create a mock human reference check
-    # In a real implementation, you would have a human genome sketch available
+    # Check if database is provided
+    if [ -z "${database_human}" ]; then
+        echo "WARNING: No Mash database specified for human contamination check!" >&2
+        echo "Provide --mash_db_human (or --mash_db) to enable contamination detection" >&2
+        echo "Creating empty output..." >&2
+        echo -e "sample\\treference\\tdistance\\tp_value\\tshared_hashes\\tcontamination_level" > mash_human/${prefix}_human_contamination.txt
+        echo -e "${prefix}\\tno_database_provided\\t1.0\\t1.0\\t0/1000\\tunknown" >> mash_human/${prefix}_human_contamination.txt
+        echo -e "${prefix}\\t1.0\\tunknown" > mash_human/${prefix}_human_summary.txt
+        exit 0
+    fi
     
-    # Check against RefSeq database for human sequences
-    mash dist /db/RefSeqSketchesDefaults.msh mash_human/${prefix}.msh | \\
+    # Check if database file exists
+    if [ ! -f "${database_human}" ]; then
+        echo "WARNING: Mash database not found at: ${database_human}" >&2
+        echo "Creating empty output..." >&2
+        echo -e "sample\\treference\\tdistance\\tp_value\\tshared_hashes\\tcontamination_level" > mash_human/${prefix}_human_contamination.txt
+        echo -e "${prefix}\\tdatabase_not_found\\t1.0\\t1.0\\t0/1000\\tunknown" >> mash_human/${prefix}_human_contamination.txt
+        echo -e "${prefix}\\t1.0\\tunknown" > mash_human/${prefix}_human_summary.txt
+        exit 0
+    fi
+    
+    # Check against database for human sequences
+    mash dist ${database_human} mash_human/${prefix}.msh | \\
         grep -i "homo.*sapiens\\|human\\|GCF_000001405" | \\
         sort -gk3 | \\
         head -5 | \\
