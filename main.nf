@@ -1907,9 +1907,23 @@ workflow {
 
   DONUT_FALLS(ch_nanopore_input, ch_illumina_input.ifEmpty([]))
 
-   // Run WAPHL_ANALYSIS after DONUT_FALLS
+  // Synchronize consensus files before WAPHL_ANALYSIS
+  // This ensures all samples that successfully completed consensus generation
+  // are processed by WAPHL_ANALYSIS, preventing timing-related issues with
+  // .groupTuple() that could result in only the last sample being processed
+  DONUT_FALLS.out.consensus
+    .collect()
+    .flatten()
+    .map { fasta ->
+        def meta = [id: fasta.baseName.tokenize('_')[0]]
+        tuple(meta, fasta)
+    }
+    .groupTuple(by: 0)
+    .set { ch_consensus_synchronized }
+
+  // Run WAPHL_ANALYSIS with synchronized consensus channel
   WAPHL_ANALYSIS(
-    DONUT_FALLS.out.consensus,
+    ch_consensus_synchronized,
     DONUT_FALLS.out.consensus_files,
     DONUT_FALLS.out.summary_tsv,
     ch_nanopore_input,
