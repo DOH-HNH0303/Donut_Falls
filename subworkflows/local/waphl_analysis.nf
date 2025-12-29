@@ -38,8 +38,12 @@ workflow WAPHL_ANALYSIS {
         }
         .set { ch_consensus_final }
 
+    // Prepare database for SOURMASH_TAXA - handle remote URLs (S3, HTTP, etc.) and local files
+    def database_path = params.sourmash_db_taxa ?: params.sourmash_db ?: null
+    ch_database = database_path ? Channel.fromPath(database_path, checkIfExists: false) : Channel.value([])
+    
     // Run SOURMASH_TAXA on final consensus files only
-    SOURMASH_TAXA(ch_consensus_final)
+    SOURMASH_TAXA(ch_consensus_final, ch_database)
     ch_versions = ch_versions.mix(SOURMASH_TAXA.out.versions.first())
 
     // Run MASH_HUMAN_CONTAMINATION on final consensus files only

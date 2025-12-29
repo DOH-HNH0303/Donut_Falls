@@ -6,6 +6,7 @@ process SOURMASH_TAXA {
     
     input:
     tuple val(meta), path(fasta)
+    path database_taxa, stageAs: 'sourmash_db/*'
 
     output:
     tuple val(meta), path("sourmash_taxa/*.txt"), emit: taxa
@@ -18,7 +19,7 @@ process SOURMASH_TAXA {
     def prefix = task.ext.prefix ?: "${meta.id}"
     def ksize = task.ext.ksize ?: '31'
     def scaled = task.ext.scaled ?: '1000'
-    def database_taxa = params.sourmash_db_taxa ?: params.sourmash_db ?: ''
+    // database_taxa is now a staged file path from the input
     """
     mkdir -p sourmash_taxa
     
@@ -29,8 +30,8 @@ process SOURMASH_TAXA {
         -o sourmash_taxa/${prefix}.sig \\
         ${fasta}
     
-    # Check if database is provided
-    if [ -z "${database_taxa}" ]; then
+    # Check if database file is empty (happens when [] is passed as input)
+    if [ "${database_taxa}" == "[]" ] || [ ! -s "${database_taxa}" ]; then
         echo "WARNING: No sourmash database specified for taxonomic identification!" >&2
         echo "Provide --sourmash_db_taxa (or --sourmash_db) to enable species identification" >&2
         echo "Example databases: GTDB (gtdb-rs214.genomic.k31.zip) or GenBank (genbank-2022.03.genomic.k31.zip)" >&2
@@ -40,16 +41,7 @@ process SOURMASH_TAXA {
         exit 0
     fi
     
-    # Check if database file exists
-    if [ ! -f "${database_taxa}" ]; then
-        echo "WARNING: Sourmash database not found at: ${database_taxa}" >&2
-        echo "Creating empty output..." >&2
-        echo -e "sample\\treference\\tcontainment\\tf_match\\tANI\\tgenus_species" > sourmash_taxa/${prefix}_taxa.txt
-        echo -e "${prefix}\\tdatabase_not_found\\t0\\t0\\t0\\tUnknown organism" >> sourmash_taxa/${prefix}_taxa.txt
-        exit 0
-    fi
-    
-    # Database exists, proceed with gather
+    # Database exists and is staged, proceed with gather
     sourmash gather \\
         sourmash_taxa/${prefix}.sig \\
         ${database_taxa} \\
