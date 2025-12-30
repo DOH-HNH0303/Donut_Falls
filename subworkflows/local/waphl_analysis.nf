@@ -16,40 +16,33 @@ workflow WAPHL_ANALYSIS {
     main:
     ch_versions = Channel.empty()
 
-    // Filter consensus files to only process the final pypolca version for each sample
-    // We explicitly select only the pypolca-polished assembly
-    // First, separate samples by grouping on sample ID
+    // Filter consensus files to only process the final/best version for each sample
+    // Priority: pypolca > polypolish > clair3 > reoriented > unicycler
     ch_consensus_meta
-        .map { meta, fasta ->
-            // Extract the base sample ID (without polishing stage suffix)
-            def sample_id = meta.id
-            // Create a standardized meta for grouping
-            def group_meta = [id: sample_id]
-            tuple(group_meta, fasta)
+        .filter { meta, fasta ->
+            // Ensure both meta and fasta are not null
+            meta != null && fasta != null && meta.id != null
         }
         .groupTuple(by: 0)
         .map { meta, fastas ->
-            // Ensure fastas is a list
-            def fasta_list = fastas instanceof List ? fastas : [fastas]
+            // Ensure fastas is a list and filter out nulls
+            def fasta_list = (fastas instanceof List ? fastas : [fastas]).findAll { it != null }
             
-            // Select ONLY the pypolca file (the final polished version)
-            def pypolca_fasta = fasta_list.find { fasta -> 
-                fasta.name.contains("_pypolca.fasta") 
+            // Find the best fasta file for this sample using priority order
+            def priority_order = ['pypolca', 'polypolish', 'clair3', 'reoriented', 'unicycler']
+            
+            // Use findResult to iterate through priorities and return first match
+            def best_fasta = priority_order.findResult { priority ->
+                fasta_list.find { fasta -> fasta.name.contains("_${priority}.fasta") }
             }
             
-            // If pypolca not found, fall back to priority order
-            if (!pypolca_fasta) {
-                def priority_order = ['polypolish', 'clair3', 'reoriented', 'unicycler']
-                pypolca_fasta = priority_order.findResult { priority ->
-                    fasta_list.find { fasta -> fasta.name.contains("_${priority}.fasta") }
-                }
-            }
+            // If no priority match found, take the first non-null one
+            def selected_fasta = best_fasta ?: fasta_list[0]
             
-            // If still no match, take the first one
-            def best_fasta = pypolca_fasta ?: fasta_list[0]
-            
-            tuple(meta, best_fasta)
+            // Only emit if we have a valid fasta
+            selected_fasta ? tuple(meta, selected_fasta) : null
         }
+        .filter { it != null }
         .set { ch_consensus_final }
 
     // Prepare database for SOURMASH_TAXA - handle remote URLs (S3, HTTP, etc.) and local files
