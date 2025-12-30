@@ -1912,11 +1912,10 @@ workflow {
   // are processed by WAPHL_ANALYSIS, preventing timing-related issues with
   // .groupTuple() that could result in only the last sample being processed
   DONUT_FALLS.out.consensus
-    .collect()
-    .flatten()
-    .map { fasta ->
-        def meta = [id: fasta.baseName.tokenize('_')[0]]
-        tuple(meta, fasta)
+    .map { meta, fasta ->
+        // Extract sample ID from existing meta or from filename
+        def sample_id = meta.id ?: fasta.baseName.tokenize('_')[0]
+        tuple([id: sample_id], fasta)
     }
     .groupTuple(by: 0)
     .set { ch_consensus_synchronized }
