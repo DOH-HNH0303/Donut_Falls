@@ -46,28 +46,29 @@ if (params.config_file) {
 
 // ##### ##### ##### ##### ##### ##### ##### ##### ##### #####
 
-def paramCheck(keys) { set_keys = [ 
-    "input", 
-    "outdir", 
-    "sample_sheet", 
-    "sequencing_summary", 
-    "assembler", 
-    "test", 
-    "config_file", 
-    "custom_config_version", 
-    "custom_config_base", 
-    "config_profile_name", 
-    "config_profile_description", 
-    "config_profile_contact", 
-    "config_profile_url", 
-    "max_memory", 
-    "max_cpus", 
-    "max_time", 
-    "help", 
-    "sourmash_db", 
-    "sourmash_db_taxa", 
-    "sourmash_db_human", 
-    "mash_db", 
+def paramCheck(keys) {
+  set_keys = [
+    "input",
+    "outdir",
+    "sample_sheet",
+    "sequencing_summary",
+    "assembler",
+    "test",
+    "config_file",
+    "custom_config_version",
+    "custom_config_base",
+    "config_profile_name",
+    "config_profile_description",
+    "config_profile_contact",
+    "config_profile_url",
+    "max_memory",
+    "max_cpus",
+    "max_time",
+    "help",
+    "sourmash_db",
+    "sourmash_db_taxa",
+    "sourmash_db_human",
+    "mash_db",
     "mash_db_human"]
 
   for(key in keys){
