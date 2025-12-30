@@ -17,9 +17,16 @@ workflow WAPHL_ANALYSIS {
     ch_versions = Channel.empty()
 
     // Select only pypolca assemblies (the best/final polished version)
-    // Simple filter approach - no groupTuple to avoid channel state issues
+    // Input comes as grouped tuples: [meta, [fasta1, fasta2, ...]]
+    // We need to flatten and filter for pypolca files only
     ch_consensus_final = ch_consensus_meta
-        .filter { _meta, fasta -> fasta.name.contains('_pypolca.fasta') }
+        .flatMap { meta, fastas ->
+            // Ensure fastas is a list
+            def fasta_list = fastas instanceof List ? fastas : [fastas]
+            // Find pypolca files and return as individual tuples
+            fasta_list.findAll { fasta -> fasta.name.contains('_pypolca.fasta') }
+                      .collect { fasta -> tuple(meta, fasta) }
+        }
 
     // Prepare database for SOURMASH_TAXA - handle remote URLs (S3, HTTP, etc.) and local files
     def database_path = params.sourmash_db_taxa ?: params.sourmash_db ?: null
