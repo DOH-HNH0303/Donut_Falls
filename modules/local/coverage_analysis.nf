@@ -19,6 +19,16 @@ process COVERAGE_ANALYSIS {
   script:
   def prefix = task.ext.prefix ?: "${meta.id}"
   
+  // Ensure we only use a single FASTA file
+  // If multiple files are passed, select the best one (pypolca > polypolish > clair3 > reoriented)
+  def fasta_list = fasta instanceof List ? fasta : [fasta]
+  def selected_fasta = fasta_list.size() == 1 ? fasta_list[0] : 
+    fasta_list.find { it.name.contains('_pypolca.fasta') } ?:
+    fasta_list.find { it.name.contains('_polypolish.fasta') } ?:
+    fasta_list.find { it.name.contains('_clair3.fasta') } ?:
+    fasta_list.find { it.name.contains('_reoriented.fasta') } ?:
+    fasta_list[0]
+  
   // Determine read type based on file structure
   def is_paired = reads instanceof List && reads.size() == 2
   def is_ont = !is_paired && reads.toString().endsWith('.fastq.gz')
@@ -28,15 +38,15 @@ process COVERAGE_ANALYSIS {
   mkdir -p coverage_analysis
 
   # Index the reference genome
-  samtools faidx ${fasta}
+  samtools faidx ${selected_fasta}
 
   # Determine read type and map accordingly
   if [ "${read_type}" == "illumina" ]; then
     echo "Processing Illumina paired-end reads"
     
     # Map Illumina reads to the assembly using BWA
-    bwa index ${fasta}
-    bwa mem -t ${task.cpus} ${fasta} ${reads[0]} ${reads[1]} | \\
+    bwa index ${selected_fasta}
+    bwa mem -t ${task.cpus} ${selected_fasta} ${reads[0]} ${reads[1]} | \\
       samtools sort -@ ${task.cpus} -o coverage_analysis/${prefix}_mapped.bam -
     
     # Calculate read statistics for Illumina
@@ -47,7 +57,7 @@ process COVERAGE_ANALYSIS {
     echo "Processing ONT long reads"
     
     # Map ONT reads to the assembly using minimap2
-    minimap2 -ax map-ont -t ${task.cpus} ${fasta} ${reads} | \\
+    minimap2 -ax map-ont -t ${task.cpus} ${selected_fasta} ${reads} | \\
       samtools sort -@ ${task.cpus} -o coverage_analysis/${prefix}_mapped.bam -
     
     # Calculate read statistics for ONT
