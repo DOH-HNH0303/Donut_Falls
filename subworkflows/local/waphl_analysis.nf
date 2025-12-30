@@ -16,34 +16,10 @@ workflow WAPHL_ANALYSIS {
     main:
     ch_versions = Channel.empty()
 
-    // Filter consensus files to only process the final/best version for each sample
-    // Priority: pypolca > polypolish > clair3 > reoriented > unicycler
-    ch_consensus_meta
-        .filter { meta, fasta ->
-            // Ensure both meta and fasta are not null
-            meta != null && fasta != null && meta.id != null
-        }
-        .groupTuple(by: 0)
-        .map { meta, fastas ->
-            // Ensure fastas is a list and filter out nulls
-            def fasta_list = (fastas instanceof List ? fastas : [fastas]).findAll { it != null }
-            
-            // Find the best fasta file for this sample using priority order
-            def priority_order = ['pypolca', 'polypolish', 'clair3', 'reoriented', 'unicycler']
-            
-            // Use findResult to iterate through priorities and return first match
-            def best_fasta = priority_order.findResult { priority ->
-                fasta_list.find { fasta -> fasta.name.contains("_${priority}.fasta") }
-            }
-            
-            // If no priority match found, take the first non-null one
-            def selected_fasta = best_fasta ?: fasta_list[0]
-            
-            // Only emit if we have a valid fasta
-            selected_fasta ? tuple(meta, selected_fasta) : null
-        }
-        .filter { it != null }
-        .set { ch_consensus_final }
+    // Select only pypolca assemblies (the best/final polished version)
+    // Simple filter approach - no groupTuple to avoid channel state issues
+    ch_consensus_final = ch_consensus_meta
+        .filter { _meta, fasta -> fasta.name.contains('_pypolca.fasta') }
 
     // Prepare database for SOURMASH_TAXA - handle remote URLs (S3, HTTP, etc.) and local files
     def database_path = params.sourmash_db_taxa ?: params.sourmash_db ?: null
