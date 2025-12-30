@@ -21,19 +21,22 @@ workflow WAPHL_ANALYSIS {
     ch_consensus_meta
         .groupTuple(by: 0)
         .map { meta, fastas ->
+            // Ensure fastas is a list
+            def fasta_list = fastas instanceof List ? fastas : [fastas]
+            
             // Select ONLY the pypolca file (the final polished version)
-            def pypolca_fasta = fastas.find { fasta -> fasta.name.contains("_pypolca.fasta") }
+            def pypolca_fasta = fasta_list.find { fasta -> fasta.name.contains("_pypolca.fasta") }
             
             // If pypolca not found (shouldn't happen), fall back to priority order
             if (!pypolca_fasta) {
                 def priority_order = ['polypolish', 'clair3', 'reoriented', 'unicycler']
                 pypolca_fasta = priority_order.findResult { priority ->
-                    fastas.find { fasta -> fasta.name.contains("_${priority}.fasta") }
+                    fasta_list.find { fasta -> fasta.name.contains("_${priority}.fasta") }
                 }
             }
             
             // If still no match, take the first one
-            def best_fasta = pypolca_fasta ?: fastas[0]
+            def best_fasta = pypolca_fasta ?: fasta_list[0]
             
             tuple(meta, best_fasta)
         }
