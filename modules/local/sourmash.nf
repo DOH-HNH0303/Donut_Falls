@@ -13,7 +13,7 @@ process SOURMASH_TAXA {
     path "versions.yml", emit: versions
     
     when:
-    fasta != null && !fasta.name.contains('reoriented')
+    fasta != null
     
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"

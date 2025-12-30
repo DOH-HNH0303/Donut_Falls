@@ -18,16 +18,26 @@ workflow WAPHL_ANALYSIS {
 
     // Filter consensus files to only process the final pypolca version for each sample
     // We explicitly select only the pypolca-polished assembly
+    // First, separate samples by grouping on sample ID
     ch_consensus_meta
+        .map { meta, fasta ->
+            // Extract the base sample ID (without polishing stage suffix)
+            def sample_id = meta.id
+            // Create a standardized meta for grouping
+            def group_meta = [id: sample_id]
+            tuple(group_meta, fasta)
+        }
         .groupTuple(by: 0)
         .map { meta, fastas ->
             // Ensure fastas is a list
             def fasta_list = fastas instanceof List ? fastas : [fastas]
             
             // Select ONLY the pypolca file (the final polished version)
-            def pypolca_fasta = fasta_list.find { fasta -> fasta.name.contains("_pypolca.fasta") }
+            def pypolca_fasta = fasta_list.find { fasta -> 
+                fasta.name.contains("_pypolca.fasta") 
+            }
             
-            // If pypolca not found (shouldn't happen), fall back to priority order
+            // If pypolca not found, fall back to priority order
             if (!pypolca_fasta) {
                 def priority_order = ['polypolish', 'clair3', 'reoriented', 'unicycler']
                 pypolca_fasta = priority_order.findResult { priority ->
