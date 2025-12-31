@@ -90,11 +90,14 @@ process FINAL_SUMMARY {
                   with open(mash_file, 'r') as f:
                       lines = f.readlines()
                       if len(lines) > 1:  # Skip header
-                          # Get the first data line (best match - gather_rank 1)
+                          # Get the first data line (best match - gather_rank 1 or lowest rank)
                           data_line = lines[1].strip().split('\\t')
                           if len(data_line) >= 4:
                               taxa = data_line[2]                  # taxa column (cleaned name)
                               match_ani = data_line[3]            # match_containment_ani column
+                              # Handle "No matches" case
+                              if taxa == "No matches >= 95% ANI":
+                                  return 'No matches >= 95% ANI', '0'
                               return taxa, match_ani
               except Exception as e:
                   print("Error reading {}: {}".format(mash_file, e))

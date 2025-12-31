@@ -54,7 +54,11 @@ process SOURMASH_TAXA {
     awk -F',' -v sample=${prefix} '
     BEGIN {
         OFS="\\t"
-        match_count = 0
+    }
+    NR == 1 {
+        # Print header
+        print "sample", "gather_rank", "taxa", "match_containment_ani", "f_unique_to_query", "average_abund"
+        next
     }
     NR > 1 {
         # Columns from gather CSV (1-indexed in awk):
@@ -81,8 +85,6 @@ process SOURMASH_TAXA {
         
         # Filter for match_containment_ani >= 0.95
         if (match_ani + 0 >= 0.95) {
-            match_count++
-            
             # Extract taxa name (everything after first space, removing accession)
             taxa = full_name
             # Split on first space and take rest
@@ -95,25 +97,19 @@ process SOURMASH_TAXA {
                 taxa = "Unknown organism"
             }
             
-            # Store in array for sorting
-            results[gather_rank] = sample "\\t" gather_rank "\\t" taxa "\\t" match_ani "\\t" f_unique "\\t" avg_abund
+            # Output directly - gather CSV is already sorted by rank
+            print sample, gather_rank, taxa, match_ani, f_unique, avg_abund
         }
-    }
-    END {
-        # Print header
-        print "sample", "gather_rank", "taxa", "match_containment_ani", "f_unique_to_query", "average_abund"
-        
-        if (match_count == 0) {
-            # No matches above threshold
-            print sample, "0", "No matches >= 95% ANI", "0", "0", "0"
-        } else {
-            # Sort by gather_rank and print
-            n = asorti(results, sorted_indices)
-            for (i = 1; i <= n; i++) {
-                print results[sorted_indices[i]]
-            }
-        }
-    }' sourmash_taxa/${prefix}_gather.csv > sourmash_taxa/${prefix}_taxa.txt
+    }' sourmash_taxa/${prefix}_gather.csv > sourmash_taxa/${prefix}_taxa_tmp.txt
+    
+    # Check if we got any matches (file has more than just header)
+    if [ \$(wc -l < sourmash_taxa/${prefix}_taxa_tmp.txt) -le 1 ]; then
+        # No matches above threshold - add a placeholder line
+        echo -e "${prefix}\\t0\\tNo matches >= 95% ANI\\t0\\t0\\t0" >> sourmash_taxa/${prefix}_taxa_tmp.txt
+    fi
+    
+    # Move temp file to final location
+    mv sourmash_taxa/${prefix}_taxa_tmp.txt sourmash_taxa/${prefix}_taxa.txt
 
     cat <<-END_VERSIONS > versions.yml
     "WAPHL_ANALYSIS:SOURMASH_TAXA":
