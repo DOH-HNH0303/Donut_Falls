@@ -80,7 +80,8 @@ process FINAL_SUMMARY {
           return 'unknown'
 
   def get_mash_taxa_and_distance(sample, mash_files):
-      # Extract the top sourmash taxa hit and containment for a sample
+      # Extract the top sourmash taxa hit and match_containment_ani for a sample
+      # New format: sample, gather_rank, taxa, match_containment_ani, f_unique_to_query, average_abund
       for mash_file in mash_files:
           # Extract sample name from file path
           file_sample = os.path.basename(mash_file).replace('_taxa.txt', '')
@@ -89,12 +90,12 @@ process FINAL_SUMMARY {
                   with open(mash_file, 'r') as f:
                       lines = f.readlines()
                       if len(lines) > 1:  # Skip header
-                          # Get the first data line (best match)
+                          # Get the first data line (best match - gather_rank 1)
                           data_line = lines[1].strip().split('\\t')
-                          if len(data_line) >= 6:
-                              genus_species = data_line[5]  # genus_species column
-                              distance = data_line[2]       # containment column (sourmash)
-                              return genus_species, distance
+                          if len(data_line) >= 4:
+                              taxa = data_line[2]                  # taxa column (cleaned name)
+                              match_ani = data_line[3]            # match_containment_ani column
+                              return taxa, match_ani
               except Exception as e:
                   print("Error reading {}: {}".format(mash_file, e))
                   continue
@@ -246,10 +247,10 @@ process FINAL_SUMMARY {
               sample = row['sample']
               print("Processing sample: {}".format(sample))
               
-              # Get mash taxa and distance
-              mash_taxa, mash_distance = get_mash_taxa_and_distance(sample, mash_files)
-              row['mash_taxa'] = mash_taxa
-              row['mash_distance'] = mash_distance
+              # Get sourmash taxa and match containment ANI
+              sourmash_taxa, match_ani = get_mash_taxa_and_distance(sample, mash_files)
+              row['sourmash_taxa'] = sourmash_taxa
+              row['match_containment_ani'] = match_ani
 
               # Get coverage data (ONT or Illumina)
               coverage_data = get_coverage_data(sample, coverage_files)

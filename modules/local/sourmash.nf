@@ -50,74 +50,62 @@ process SOURMASH_TAXA {
         -k ${ksize}
     
     # Parse gather results to create taxa output compatible with downstream processing
-    # Extract top 10 matches and format similar to MASH output
+    # Filter for match_containment_ani >= 0.95 and extract taxa (without accession)
     awk -F',' -v sample=${prefix} '
     BEGIN {
         OFS="\\t"
-        print "sample", "reference", "containment", "f_match", "ANI", "genus_species"
+        print "sample", "gather_rank", "taxa", "match_containment_ani", "f_unique_to_query", "average_abund"
+        match_count = 0
     }
-    NR > 1 && NR <= 11 {
-            # Extract genus and species from name field (column 2)
-            ref_name = \$2
-            genus_species = "Unknown"
+    NR > 1 {
+        # Columns from gather CSV (1-indexed in awk):
+        # 1=intersect_bp, 2=f_orig_query, 3=f_match, 4=f_unique_to_query, 5=f_unique_weighted, 
+        # 6=average_abund, 7=median_abund, 8=std_abund, 9=filename, 10=name, 11=md5, 12=f_match_orig, 
+        # 13=unique_intersect_bp, 14=gather_result_rank, 15=remaining_bp, 16=query_filename, 
+        # 17=query_name, 18=query_md5, 19=query_bp, 20=ksize, 21=moltype, 22=scaled, 23=query_n_hashes, 
+        # 24=query_abundance, 25=query_containment_ani, 26=match_containment_ani, 
+        # 27=average_containment_ani, 28=max_containment_ani, 29=potential_false_negative
+        
+        # Extract fields
+        full_name = \$10
+        gather_rank = \$14
+        f_unique = \$4
+        avg_abund = \$6
+        match_ani = \$26
+        
+        # Remove quotes
+        gsub(/"/, "", full_name)
+        gsub(/"/, "", gather_rank)
+        gsub(/"/, "", f_unique)
+        gsub(/"/, "", avg_abund)
+        gsub(/"/, "", match_ani)
+        
+        # Filter for match_containment_ani >= 0.95
+        if (match_ani + 0 >= 0.95) {
+            match_count++
             
-            # Remove quotes
-            gsub(/"/, "", ref_name)
-            
-            # Try to extract genus_species pattern
-            if (match(ref_name, /[A-Z][a-z]+_[a-z][a-z]+/)) {
-                matched_part = substr(ref_name, RSTART, RLENGTH)
-                n = split(matched_part, parts, "_")
-                if (n >= 2 && length(parts[2]) > 2) {
-                    genus_species = parts[1] " " parts[2]
-                }
+            # Extract taxa name (everything after first space, removing accession)
+            taxa = full_name
+            # Split on first space and take rest
+            if (match(full_name, / /)) {
+                taxa = substr(full_name, RSTART + 1)
             }
             
-        # Try GCF/GCA format if still unknown
-        if (genus_species == "Unknown" && match(ref_name, /GC[FA]_[0-9]+/)) {
-            # Extract everything after the accession
-            sub(/.*GC[FA]_[0-9]+\\.[0-9]+[^A-Za-z]*/, "", ref_name)
-            if (match(ref_name, /^[A-Z][a-z]+_[a-z]+/)) {
-                n = split(ref_name, parts, "_")
-                if (n >= 2 && length(parts[2]) > 2) {
-                    genus_species = parts[1] " " parts[2]
-                }
+            # Clean up taxa name
+            if (taxa == "" || taxa == full_name) {
+                taxa = "Unknown organism"
             }
+            
+            # Output: sample, gather_rank, taxa, match_containment_ani, f_unique_to_query, average_abund
+            print sample, gather_rank, taxa, match_ani, f_unique, avg_abund
         }
-        
-        # Clean up genus_species
-        if (genus_species == "Unknown" || genus_species == "") {
-            genus_species = "Unknown organism"
-        }
-        gsub(/[^a-zA-Z0-9 -]/, "", genus_species)
-        
-        # Output fields: sample, reference, containment, f_match, ANI, genus_species
-        # Columns from gather CSV: 
-        # intersect_bp, f_orig_query, f_match, f_unique_to_query, f_unique_weighted, 
-        # average_abund, median_abund, std_abund, name, filename, md5, f_match_orig, 
-        # unique_intersect_bp, gather_result_rank, remaining_bp, query_filename, 
-        # query_name, query_md5, query_bp, ksize, moltype, scaled, query_n_hashes, 
-        # query_abundance, query_containment_ani, match_containment_ani, 
-        # average_containment_ani, max_containment_ani, potential_false_negative
-        
-        # Get containment (f_orig_query is column 3), f_match (column 4), and ANI
-        containment = \$3
-        f_match = \$4
-        ani = \$25  # query_containment_ani
-        
-        # Remove quotes from fields
-        gsub(/"/, "", containment)
-        gsub(/"/, "", f_match)
-        gsub(/"/, "", ani)
-        
-        print sample, \$2, containment, f_match, ani, genus_species
     }
     END {
-        if (NR == 1) {
-            # No matches found
-            print sample, "no_matches_found", "0", "0", "0", "Unknown organism"
+        if (match_count == 0) {
+            # No matches above threshold
+            print sample, "0", "No matches >= 95% ANI", "0", "0", "0"
         }
-    }' sourmash_taxa/${prefix}_gather.csv > sourmash_taxa/${prefix}_taxa.txt
+    }' sourmash_taxa/${prefix}_gather.csv | sort -t$'\\t' -k2,2n > sourmash_taxa/${prefix}_taxa.txt
 
     cat <<-END_VERSIONS > versions.yml
     "WAPHL_ANALYSIS:SOURMASH_TAXA":
