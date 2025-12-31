@@ -54,7 +54,6 @@ process SOURMASH_TAXA {
     awk -F',' -v sample=${prefix} '
     BEGIN {
         OFS="\\t"
-        print "sample", "gather_rank", "taxa", "match_containment_ani", "f_unique_to_query", "average_abund"
         match_count = 0
     }
     NR > 1 {
@@ -96,16 +95,25 @@ process SOURMASH_TAXA {
                 taxa = "Unknown organism"
             }
             
-            # Output: sample, gather_rank, taxa, match_containment_ani, f_unique_to_query, average_abund
-            print sample, gather_rank, taxa, match_ani, f_unique, avg_abund
+            # Store in array for sorting
+            results[gather_rank] = sample "\\t" gather_rank "\\t" taxa "\\t" match_ani "\\t" f_unique "\\t" avg_abund
         }
     }
     END {
+        # Print header
+        print "sample", "gather_rank", "taxa", "match_containment_ani", "f_unique_to_query", "average_abund"
+        
         if (match_count == 0) {
             # No matches above threshold
             print sample, "0", "No matches >= 95% ANI", "0", "0", "0"
+        } else {
+            # Sort by gather_rank and print
+            n = asorti(results, sorted_indices)
+            for (i = 1; i <= n; i++) {
+                print results[sorted_indices[i]]
+            }
         }
-    }' sourmash_taxa/${prefix}_gather.csv | sort -t$'\\t' -k2,2n > sourmash_taxa/${prefix}_taxa.txt
+    }' sourmash_taxa/${prefix}_gather.csv > sourmash_taxa/${prefix}_taxa.txt
 
     cat <<-END_VERSIONS > versions.yml
     "WAPHL_ANALYSIS:SOURMASH_TAXA":
