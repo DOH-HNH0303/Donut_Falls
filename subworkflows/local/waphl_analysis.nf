@@ -29,8 +29,9 @@ workflow WAPHL_ANALYSIS {
         }
 
     // Prepare database for SOURMASH_TAXA - handle remote URLs (S3, HTTP, etc.) and local files
+    // Use collect() to create a value channel that can be consumed multiple times
     def database_path = params.sourmash_db_taxa ?: params.sourmash_db ?: null
-    ch_database = database_path ? Channel.fromPath(database_path, checkIfExists: false) : Channel.value([])
+    ch_database = database_path ? Channel.fromPath(database_path, checkIfExists: false).collect() : Channel.value([])
     
     // Run SOURMASH_TAXA on final consensus files only
     SOURMASH_TAXA(ch_consensus_final, ch_database)
