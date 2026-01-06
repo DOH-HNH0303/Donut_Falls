@@ -3,6 +3,7 @@ nextflow.enable.dsl = 2
 
 //include { MASH_TAXA } from './modules/local/mash'
 include { WAPHL_ANALYSIS } from './subworkflows/local/waphl_analysis'
+include { PYPOLCA } from './modules/local/pypolca'
 
 // read but ignored most things from
 // https://carpentries-incubator.github.io/Pipeline_Training_with_Nextflow/07-Nextflow_Best_Practice/index.html
@@ -864,7 +865,7 @@ process polypolish {
   """
 }
 
-process pypolca {
+process pypolca_old {
   tag           "${meta.id}"
   label         "process_medium"
   publishDir    "${params.outdir}/${meta.id}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
