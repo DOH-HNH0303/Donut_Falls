@@ -11,6 +11,7 @@ process pypolca {
   output:
   tuple val(meta), file("pypolca/*_pypolca.fasta"), optional: true, emit: fasta
   path "pypolca/*pypolca_summary.tsv", optional: true, emit: summary
+  path "pypolca/*_pypolca_failed_contigs.fasta", optional: true, emit: failed_contigs
   path "pypolca/*/*", emit: everything
   path "versions.yml", emit: versions
   
@@ -41,18 +42,23 @@ process pypolca {
       -t ${task.cpus} \
       -o pypolca/${prefix}/\${contig_name}
     
-    # Collect the corrected contig if it exists
+    # Collect the corrected contig if it exists, otherwise mark as failed
     if [ -f "pypolca/${prefix}/\${contig_name}/pypolca_corrected.fasta" ]; then
       cat pypolca/${prefix}/\${contig_name}/pypolca_corrected.fasta >> pypolca/${prefix}_pypolca.fasta
     else
-      # If pypolca didn't produce output, keep the original contig
-      cat \${contig_file} >> pypolca/${prefix}_pypolca.fasta
+      # If pypolca didn't produce output, add to failed contigs file
+      cat \${contig_file} >> pypolca/${prefix}_pypolca_failed_contigs.fasta
     fi
   done
   
-  # Restore original spacing in contig names
+  # Restore original spacing in contig names for successful polishes
   if [ -f "pypolca/${prefix}_pypolca.fasta" ]; then
     sed -i "s/_.._/ /g" pypolca/${prefix}_pypolca.fasta
+  fi
+  
+  # Restore original spacing in contig names for failed polishes
+  if [ -f "pypolca/${prefix}_pypolca_failed_contigs.fasta" ]; then
+    sed -i "s/_.._/ /g" pypolca/${prefix}_pypolca_failed_contigs.fasta
   fi
   
   # Combine all pypolca reports into a summary
@@ -78,3 +84,10 @@ process pypolca {
         >> pypolca/${prefix}_pypolca_summary.tsv
     fi
   done
+
+  cat <<-END_VERSIONS > versions.yml
+  "${task.process}":
+    pypolca: \$(pypolca --version | head -n 1 | awk '{print \$NF}')
+  END_VERSIONS
+  """
+}
