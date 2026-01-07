@@ -78,7 +78,7 @@ process bcftools {
   tag           "${meta.id}"
   label         'process_medium'
   publishDir    "${params.outdir}/${meta.id}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
-  container     'staphb/bcftools:1.22'
+  container     'staphb/bcftools:1.23'
   time          '10m'
 
   input:
@@ -722,7 +722,7 @@ process multiqc {
   tag           "combining reports"
   label         "process_low"
   publishDir    "${params.outdir}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
-  container     'staphb/multiqc:1.31'
+  container     'staphb/multiqc:1.33'
   time          '10m'
 
   input:
@@ -748,7 +748,7 @@ process myloasm {
   tag           "${meta.id}"
   label         "process_high"
   publishDir    "${params.outdir}/${meta.id}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
-  container     'staphb/myloasm:0.2.0'
+  container     'staphb/myloasm:0.3.0'
   time          '10h'
 
   input:
@@ -838,7 +838,7 @@ process png {
   tag           "${meta.id}"
   label         "process_low"
   publishDir    "${params.outdir}/${meta.id}/bandage", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
-  container     'staphb/multiqc:1.30'
+  container     'staphb/multiqc:1.33'
   time          '10m'
 
   input:
@@ -1077,7 +1077,7 @@ process seqkit {
   tag           "${meta.id}"
   label         "process_low"
   publishDir    "${params.outdir}/${meta.id}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
-  container     'staphb/seqkit:2.10.1'
+  container     'staphb/seqkit:2.12.0'
   time          '10m'
 
   input:
@@ -1155,7 +1155,7 @@ process summary {
   tag           "Creating summary"
   label         "process_low"
   publishDir    "${params.outdir}/summary", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
-  container     'staphb/multiqc:1.30'
+  container     'staphb/multiqc:1.33'
   time          '30m'
   
   input:
@@ -1581,7 +1581,7 @@ process versions {
   tag           "extracting versions"
   label         "process_low"
   publishDir    "${params.outdir}/summary", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
-  container     'staphb/multiqc:1.30'
+  container     'staphb/multiqc:1.33'
   time          '30m'
   
   input:
