@@ -323,9 +323,12 @@ fasta = "${fasta}"
 shutil.copy(fasta, f"consensus/{fasta}")
 
 sample, assembler = clean_name(fasta)
+
 df = pd.read_table('assembly_info.csv')
+df['sample'] = df['sample'].astype(str)
 df = df[(df['sample'] == sample) & (df['assembler'] == assembler)].copy()
-if not (df['circ.'] == "N").any():
+
+if not (df['circ.'] == "N").any() and not df.empty:
     sub_fasta(fasta)
   """
 }
@@ -956,7 +959,7 @@ process pypolca {
   def args   = task.ext.args   ?: '--careful'
   def prefix = task.ext.prefix ?: "${fasta.baseName.replaceAll('_polypolish','')}"
   """
-  sed "s/ /_.._/g" ${fasta} > input.fasta
+  sed "s/ /_____/g" ${fasta} > input.fasta
 
   pypolca run ${args}\
     -a input.fasta \
@@ -983,7 +986,7 @@ process pypolca {
 
   if [ -f "pypolca/${prefix}/pypolca_corrected.fasta" ]
   then
-    sed -i "s/_.._/ /g" pypolca/${prefix}/pypolca_corrected.fasta
+    sed -i "s/_____/ /g" pypolca/${prefix}/pypolca_corrected.fasta
     cp pypolca/${prefix}/pypolca_corrected.fasta pypolca/${prefix}_pypolca.fasta
   fi
 
@@ -1512,7 +1515,7 @@ process unicycler {
     -l ${nanopore} \
     -o unicycler/ \
     -t ${task.cpus} || \
-    echo "${prefix} could not be assembled"
+    echo "${prefix} could not be assembled with unicycler"
 
   if [ -f "unicycler/assembly.fasta" ] ; then cp unicycler/assembly.fasta unicycler/${prefix}_unicycler.fasta ; fi
   if [ -f "unicycler/assembly.gfa" ]   ; then cp unicycler/assembly.gfa   unicycler/${prefix}_unicycler.gfa   ; fi
@@ -1676,42 +1679,6 @@ process versions {
 
   """
 }
-
-// TODO : Add seqkit watch for visualizations
-// process watch {
-//   tag           "${meta.id}"
-//   label         "process_low"
-//   publishDir    "${params.outdir}/${meta.id}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
-//   container     'staphb/seqkit:2.10.0'
-//   time          '10m'
-
-//   input:
-//   file(fastq)
-
-//   output:
-//   path("seqkit/*.tsv"), emit: stats
-//   path("seqkit/*hist"), emit: histogram
-//   path "versions.yml", emit: versions
-
-//   when:
-//   task.ext.when == null || task.ext.when
-
-//   script:
-//   def args   = task.ext.args   ?: '--all'
-//   def prefix = task.ext.prefix ?: ""
-//   """
-//   mkdir -p seqkit
-
-//   seqkit watch -p 500 --fields ReadLen *.fastq.gz -y -B 50
-
-//   cat <<-END_VERSIONS > versions.yml
-//   "${task.process}":
-//     seqkit: \$(seqkit version | sed 's/v//g' | awk '{print \$NF}')
-//   END_VERSIONS
-
-//   exit 1
-//   """  
-// }
 
 // ##### ##### ##### ##### ##### ##### ##### ##### ##### #####
 
@@ -1965,10 +1932,7 @@ workflow DONUT_FALLS {
 
       ch_clair3_fa = ch_clair3_fa.mix(bcftools.out.fasta)
 
-
-      // to do fix this filter
       ch_clair3_fa
-        .mix(ch_unicycler_fa)
         .join(ch_dist_filter.flatMap { tuple -> (1..num_assemblers).collect { tuple } }, by: 0, remainder: true)
         .filter{ it -> if (it) {it[1]}}
         .filter{ it[2] }
