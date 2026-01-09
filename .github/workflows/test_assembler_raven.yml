@@ -5,11 +5,17 @@ on: [pull_request, workflow_dispatch]
 jobs:
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-            
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install Nextflow
         run: |
           wget -qO- get.nextflow.io | bash
@@ -26,4 +32,5 @@ jobs:
       - name: Check files
         run: |
           ls  donut_falls/multiqc/multiqc_report.html
+          ls  donut_falls/df/raven/df_raven.fasta donut_falls/df/raven/df_raven.gfa
           cat donut_falls/summary/donut_falls_summary.json
