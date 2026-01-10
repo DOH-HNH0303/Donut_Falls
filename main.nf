@@ -972,7 +972,10 @@ process pypolca {
   """
   sed "s/ /_____/g" ${fasta} > input.fasta
 
-  pypolca run ${args}\
+  # Count contigs in input FASTA
+  INPUT_CONTIGS=\$(grep -c ">" input.fasta)
+
+  pypolca run ${args} \
     -a input.fasta \
     -1 ${fastq[0]} \
     -2 ${fastq[1]} \
@@ -981,24 +984,47 @@ process pypolca {
 
   if [ -f "pypolca/${prefix}/pypolca.report" ]
   then
+    # Extract PyPolca metrics
     cut -f 1 -d : pypolca/${prefix}/pypolca.report | \
       sed 's/ /_/g' | \
       tr "\\n" "\\t" | \
-      awk '{print "sample\\t" \$0 }' \
+      awk '{print "sample\\t" \$0 "\\tinput_contigs\\toutput_contigs\\tperc_warnings"}' \
       > pypolca/${prefix}_pypolca_summary.tsv
 
     cut -f 2 -d : pypolca/${prefix}/pypolca.report | \
-      awk '{( \$1 = \$1 ) ; print \$0 }' | \
+      awk '{(\$1=\$1); print \$0}' | \
       sed 's/ /_/g' | \
       tr "\\n" "\\t" | \
       awk '{print "${prefix}\\t" \$0 }' \
       >> pypolca/${prefix}_pypolca_summary.tsv
+
+    # Count warnings in logs
+    WARNINGS=\$(grep -R "WARNING! Sequence does not match the original" pypolca/${prefix}/pypolca_*.log | wc -l)
+
+    # Extract edit counts
+    SUBS=\$(grep "^Substitution Errors Found" pypolca/${prefix}/pypolca.report | cut -d ':' -f2 | awk '{print \$1}')
+    INDELS=\$(grep "^Insertion/Deletion Errors Found" pypolca/${prefix}/pypolca.report | cut -d ':' -f2 | awk '{print \$1}')
+
+    TOTAL_EDITS=\$((SUBS + INDELS))
+
+    # Compute percent warnings
+    if [ "\$TOTAL_EDITS" -gt 0 ]; then
+      PERC_WARNINGS=\$(echo "scale=4; (\$WARNINGS / \$TOTAL_EDITS) * 100" | bc)
+    else
+      PERC_WARNINGS=0
+    fi
   fi  
 
   if [ -f "pypolca/${prefix}/pypolca_corrected.fasta" ]
   then
     sed -i "s/_____/ /g" pypolca/${prefix}/pypolca_corrected.fasta
     cp pypolca/${prefix}/pypolca_corrected.fasta pypolca/${prefix}_pypolca.fasta
+
+    # Count contigs in corrected FASTA
+    OUTPUT_CONTIGS=\$(grep -c ">" pypolca/${prefix}_pypolca.fasta)
+
+    # Append contig counts + percent warnings
+    sed -i "s/\$/\\t\${INPUT_CONTIGS}\\t\${OUTPUT_CONTIGS}\\t\${PERC_WARNINGS}/" pypolca/${prefix}_pypolca_summary.tsv
   fi
 
   cat <<-END_VERSIONS > versions.yml
