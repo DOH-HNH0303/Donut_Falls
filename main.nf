@@ -3,6 +3,7 @@ nextflow.enable.dsl = 2
 
 //include { MASH_TAXA } from './modules/local/mash'
 include { WAPHL_ANALYSIS } from './subworkflows/local/waphl_analysis'
+include { HOSTILE } from './modules/local/hostile'
 //include { pypolca } from './modules/local/pypolca'
 
 // read but ignored most things from
@@ -1920,6 +1921,29 @@ workflow DONUT_FALLS {
 
     ch_summary = ch_summary.mix(seqkit_summary)
     ch_versions = ch_versions.mix(seqkit.out.versions)
+
+    // remove human reads from ont
+    if (params.remove_human_reads) {
+        HOSTILE(
+            ch_nanopore_input,          // Input: QC'd ONT reads (tuple val(meta), path(reads))
+            params.hostile_index      // Input: Index name (e.g., 'human-t2t-hla')
+        )
+        
+        // Use decontaminated reads for assembly
+        ch_nanopore_input = HOSTILE.out.reads
+        
+        // Collect stats for summary
+        hostile_stats_ch = HOSTILE.out.stats
+        hostile_log_ch = HOSTILE.out.log
+        
+    } else {
+        // Use QC'd reads directly for assembly (no decontamination)
+        
+        // Create empty channels for downstream consistency
+        hostile_stats_ch = channel.empty()
+        hostile_log_ch = channel.empty()
+    }
+
 
     // filter out Illumina reads that differ from their Nanopore pairs
     ch_illumina_input
