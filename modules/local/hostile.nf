@@ -5,7 +5,7 @@ process HOSTILE {
     conda (params.enable_conda ? 'bioconda::hostile=2.0.2' : null)
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/hostile:2.0.2--pyhdfd78af_0' :
-        'biocontainers/hostile:2.0.2--pyhdfd78af_0' }"
+        'staphb/hostile:2.0.2' }"
 
     input:
     tuple val(meta), path(reads)
