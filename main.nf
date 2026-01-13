@@ -39,7 +39,9 @@ def paramCheck(keys) {
     "sourmash_db_taxa",
     "sourmash_db_human",
     "mash_db",
-    "mash_db_human"] as Set
+    "mash_db_human",
+    "remove_human_reads",
+    "hostile_index"] as Set
 
       def unsupported = keys - allowedKeys
       if (unsupported) {
