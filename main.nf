@@ -41,7 +41,12 @@ def paramCheck(keys) {
     "mash_db",
     "mash_db_human",
     "remove_human_reads",
-    "hostile_index"] as Set
+    "hostile_index",
+    "ont_q_min",
+    "ont_coverage_min",
+    "illumina_coverage_min",
+    "busco_completeness_of_genome",
+    "ont_coverage_breadth_min"] as Set
 
       def unsupported = keys - allowedKeys
       if (unsupported) {
