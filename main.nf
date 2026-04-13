@@ -475,7 +475,7 @@ process fastplong {
 process flye {
   tag           "${meta.id}"
   label         "process_high"
-  publishDir    "${params.outdir}/${meta.id}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
+  publishDir    "${params.outdir}/${meta.id}", mode: 'copy', pattern: "flye/*", saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
   container     'staphb/flye:2.9.6'
   time          '10h'
 
@@ -767,7 +767,7 @@ process multiqc {
 process myloasm {
   tag           "${meta.id}"
   label         "process_high"
-  publishDir    "${params.outdir}/${meta.id}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
+  publishDir    "${params.outdir}/${meta.id}", mode: 'copy', pattern: "myloasm/*", saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
   container     'staphb/myloasm:0.3.0'
   time          '10h'
 
@@ -1177,7 +1177,7 @@ process rasusa {
 process raven {
   tag           "${meta.id}"
   label         "process_high"
-  publishDir    "${params.outdir}/${meta.id}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
+  publishDir    "${params.outdir}/${meta.id}", mode: 'copy', pattern: "raven/*", saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
   container     'staphb/raven:1.8.3'
   time          '10h'
 
@@ -1628,7 +1628,7 @@ tsv_file(final_results)
 process unicycler {
   tag           "${meta.id}"
   label         'process_high'
-  publishDir    "${params.outdir}/${meta.id}", mode: 'copy', saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
+  publishDir    "${params.outdir}/${meta.id}", mode: 'copy', pattern: "unicycler/*", saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
   container     'staphb/unicycler:0.5.1'
   time          '10h'
 
